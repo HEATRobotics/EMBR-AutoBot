@@ -93,6 +93,21 @@ class Teleoperation(Node):
             )
 
     def _configure_terminal(self) -> None:
+        """
+        ## Def:
+            Checks if interactive input and connected to terminal, if not, warn developer
+            Else, save terminal settings for restoration later, and set terminal to recieve 
+            commands immediately, without key presses.
+
+        ## Args:
+            N/A
+
+        ## Returns:
+            N/A
+        ## Raises:
+            N/A
+        
+        """
         """Use single-key input when attached to an interactive terminal."""
         if not sys.stdin.isatty():
             self.get_logger().warn(
@@ -107,6 +122,28 @@ class Teleoperation(Node):
         tty.setcbreak(sys.stdin.fileno())
 
     def _poll_terminal(self) -> None:
+        """
+        ## Def:
+            Callback function for a timer event. Reads terminal inputs when provided
+            from `[sys.stdin]`'s first index and navigates specified actions consequently. 
+            
+        
+        #### Commands:
+        `w -> Increase forward velocity`  \n
+        `s -> Descrease forward velocity` \n
+        `a -> Decrease turn step (left)`  \n
+        `d -> Increase turn step (right)` \n
+
+        ## Args:
+            N/A 
+
+        ## Returns:
+            N/A
+        
+        ## Raises:
+            N/A
+
+        """
         while select.select([sys.stdin], [], [], 0.0)[0]:
             key = sys.stdin.read(1).lower()
             if not key:
@@ -132,17 +169,41 @@ class Teleoperation(Node):
                 return
             else:
                 continue
+            # Call in loop in order to not flood the terminal
             self._publish_sim_command()
         self._publish(self._sim_forward, self._sim_turn)
 
     def _publish_sim_command(self) -> None:
-        motors = mix_four_motor_levels(self._sim_forward, self._sim_turn)
+        """
+        ## Def:
+            Helper function for feedback when sending a command in terminal for sim version. Confirms sent command.
+        
+        ## Args:
+            NA
+
+        ## Returns:
+            NA
+
+        ## Raises:
+            NA
+
+        """
         self._publish(self._sim_forward, self._sim_turn)
         self.get_logger().info(
             f"command: forward={self._sim_forward:+.1f}, turn={self._sim_turn:+.1f}"
         )
 
     def _open_serial(self):
+        """
+        ## Def:
+
+        ## Args:
+
+        ## Returns:
+
+        ## Raises:
+
+        """
         try:
             import serial
         except ImportError as exc:
@@ -158,6 +219,16 @@ class Teleoperation(Node):
             raise RuntimeError(f"could not open iBUS serial port {port}: {exc}") from exc
 
     def _poll_receiver(self) -> None:
+        """
+        ## Def:
+
+        ## Args:
+
+        ## Returns:
+
+        ## Raises:
+
+        """
         try:
             waiting = self._serial.in_waiting
             if waiting:
@@ -179,6 +250,16 @@ class Teleoperation(Node):
             self.get_logger().warn("iBUS frame timeout: publishing zero motor levels")
 
     def _publish_channels(self, channels) -> None:
+        """
+        ## Def:
+
+        ## Args:
+
+        ## Returns:
+
+        ## Raises:
+
+        """
         forward, turn, motors = channels_to_drive(
             channels,
             self._forward_channel,
@@ -210,12 +291,32 @@ class Teleoperation(Node):
         self._publish(forward, turn)
 
     def _publish(self, forward: float, turn: float) -> None:
+        """
+        ## Def:
+
+        ## Args:
+
+        ## Returns:
+
+        ## Raises:
+
+        """
         command = TeleCmd()
         command.velocity = forward
         command.turn = turn
         self._tele_publisher.publish(command)
 
     def destroy_node(self) -> None:
+        """
+        ## Def:
+
+        ## Args:
+
+        ## Returns:
+
+        ## Raises:
+
+        """
         if hasattr(self, "_serial") and self._serial.is_open:
             self._serial.close()
         if self._terminal_settings is not None:

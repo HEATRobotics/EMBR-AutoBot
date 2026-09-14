@@ -15,7 +15,7 @@ setup(
         ),
         ("share/" + package_name, ["package.xml", "IBUS_SETUP.md"]),
     ],
-    install_requires=["setuptools"],
+    install_requires=["setuptools", "canopen>=2.3,<3"],
     zip_safe=True,
     maintainer="Maison Gulyas",
     maintainer_email="maison.personal03@gmail.com",

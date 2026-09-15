@@ -108,9 +108,15 @@ class CANOpenNetwork(Node):
                 unit = self._read(motor, 0x60A9)
                 if unit != 0x00B44700:
                     raise ValueError(f'Node {motor.id}: configure velocity units as rpm (0x60A9)')
-                if self._max_rpm > min(self._read(motor, 0x6080),
-                                       self._read(motor, 0x607F)):
-                    raise ValueError(f'Node {motor.id}: requested speed exceeds drive limits')
+                max_motor_rpm = self._read(motor, 0x6080)
+                # max_profile_rpm = self._read(motor, 0x607F)
+                if self._max_rpm > min(max_motor_rpm, max_profile_rpm):
+                    raise ValueError(
+                        f'Node {motor.id}: requested max_speed_rpm={self._max_rpm:g} '
+                        f'exceeds drive limits: 0x6080={max_motor_rpm} rpm, '
+                        f'0x607F={max_profile_rpm} rpm. Set max_speed_rpm at or below '
+                        f'{min(max_motor_rpm, max_profile_rpm, 6000)} rpm; '
+                        'verify the commissioned drive settings in Motion Studio.')
                 self._write(motor, 0x6060, 3, 1, signed=True)
                 if self._read(motor, 0x6061) != 3:
                     raise RuntimeError(f'Node {motor.id}: profile velocity mode not selected')

@@ -3,7 +3,7 @@ import importlib.util
 from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -41,8 +41,10 @@ def test_signed_targets_and_motor_order(handler):
     handler.motor_velocity_callback(SimpleNamespace(data=[1, 0.5, -0.5, -1]))
     assert [m.id for m in handler._motors] == [1, 3, 2, 4]
     for motor, rpm in zip(handler._motors, (1000, -500, -500, 1000)):
-        motor.sdo.download.assert_called_once_with(
-            0x60FF, 0, rpm.to_bytes(4, 'little', signed=True))
+        assert motor.sdo.download.call_args_list == [
+            call(0x60FF, 0, rpm.to_bytes(4, 'little', signed=True)),
+            call(0x6040, 0, b'\x0f\x00'),
+        ]
     assert handler._status_publisher.publish.call_args.args[0].success
 
 
@@ -64,6 +66,54 @@ def test_partial_bus_failure_stops_remaining_motors(handler):
     handler.motor_velocity_callback(SimpleNamespace(data=[1]*4))
     assert 'stop unconfirmed' in handler._fault
     for motor in handler._motors[1:]:
+        motor.sdo.download.assert_any_call(0x6040, 0, b'\x0b\x00')
+
+
+def test_first_and_subsequent_targets_apply_after_target_write(handler):
+    handler._last_update = None
+    handler._wait_state = Mock()
+    for level in (0.1, 0.2, 0.0):
+        handler.motor_velocity_callback(SimpleNamespace(data=[level]*4))
+        assert handler._fault is None
+        for motor, direction in zip(handler._motors, handler._directions):
+            rpm = round(level * direction * handler._max_rpm)
+            assert motor.sdo.download.call_args_list[-2:] == [
+                call(0x60FF, 0, rpm.to_bytes(4, 'little', signed=True)),
+                call(0x6040, 0, b'\x0f\x00'),
+            ]
+
+
+def test_apply_failure_stops_all_and_latches(handler):
+    def reject_apply(index, subindex, data):
+        if index == 0x6040 and data == b'\x0f\x00':
+            raise TimeoutError('apply failed')
+
+    handler._motors[0].sdo.download.side_effect = reject_apply
+    handler.motor_velocity_callback(SimpleNamespace(data=[0.1]*4))
+    assert 'apply failed' in handler._fault
+    assert not handler._status_publisher.publish.call_args.args[0].success
+    for motor in handler._motors:
+        motor.sdo.download.assert_any_call(0x6040, 0, b'\x0b\x00')
+        motor.sdo.download.assert_any_call(0x60FF, 0, bytes(4))
+        motor.sdo.download.reset_mock()
+    handler.motor_velocity_callback(SimpleNamespace(data=[0.1]*4))
+    assert all(not m.sdo.download.called for m in handler._motors)
+
+
+def test_expired_target_is_not_applied(handler, monkeypatch):
+    clock = Mock(return_value=100.0)
+    monkeypatch.setattr(handler.motor_velocity_callback.__globals__['time'],
+                        'monotonic', clock)
+
+    def delay_target(index, subindex, data):
+        if index == 0x60FF:
+            clock.return_value = 100.6
+
+    handler._motors[0].sdo.download.side_effect = delay_target
+    handler.motor_velocity_callback(SimpleNamespace(data=[0.1]*4))
+    assert 'expired before applying' in handler._fault
+    for motor in handler._motors:
+        assert call(0x6040, 0, b'\x0f\x00') not in motor.sdo.download.call_args_list
         motor.sdo.download.assert_any_call(0x6040, 0, b'\x0b\x00')
 
 
@@ -89,8 +139,10 @@ def test_single_motor_uses_original_command_slot(handler, slot):
     levels = [0.1, 0.2, 0.3, 0.4]
     handler.motor_velocity_callback(SimpleNamespace(data=levels))
     rpm = round(levels[slot] * handler._directions[slot] * 1000)
-    motors[slot].sdo.download.assert_called_once_with(
-        0x60FF, 0, rpm.to_bytes(4, 'little', signed=True))
+    assert motors[slot].sdo.download.call_args_list == [
+        call(0x60FF, 0, rpm.to_bytes(4, 'little', signed=True)),
+        call(0x6040, 0, b'\x0f\x00'),
+    ]
     handler._last_update = 99.0
     handler._publish_frame()
     motors[slot].sdo.download.assert_any_call(0x6040, 0, b'\x0b\x00')

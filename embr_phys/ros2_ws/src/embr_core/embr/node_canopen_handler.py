@@ -38,18 +38,24 @@ class CANOpenNetwork(Node):
             CANopen/transport errors: Connection or drive initialization fails.
         """
         super().__init__('canopen_handler')
-        defaults = {
-            'interface': 'kvaser', 'channel': '0', 'bitrate': 1000000,
-            'command_timeout': 0.5, 'publish_period': 0.05,
-            'sdo_timeout': 0.05, 'state_timeout': 2.0,
-            'max_speed_rpm': 0.0, 'eds_path': '',
-            'front_left_motor_id': 1, 'front_right_motor_id': 2,
-            'back_left_motor_id': 3, 'back_right_motor_id': 4,
-        }
-        for name, value in defaults.items():
-            self.declare_parameter(name, value)
+        
+        self.declare_parameter('interface', 'kvaser')
+        self.declare_parameter('channel', '0')
+        self.declare_parameter('bitrate', 1000000)
+        self.declare_parameter('command_timeout', 0.5)
+        self.declare_parameter('publish_period', 0.05)
+        self.declare_parameter('sdo_timeout', 0.05)
+        self.declare_parameter('state_timeout', 2.0)
+        self.declare_parameter('max_speed_rpm', 0.0)
+        self.declare_parameter('eds_path', '')
+        self.declare_parameter('front_left_motor_id', 1)
+        self.declare_parameter('front_right_motor_id', 2)
+        self.declare_parameter('back_left_motor_id', 3)
+        self.declare_parameter('back_right_motor_id', 4)
+
         for name in self.MOTOR_NAMES:
             self.declare_parameter(name + '_direction', 1)
+
         self._network = canopen.Network()
         self._motors = []
         self._last_update = None
@@ -62,24 +68,30 @@ class CANOpenNetwork(Node):
             period = self._positive_parameter('publish_period')
             sdo_timeout = self._positive_parameter('sdo_timeout')
             self._max_rpm = self._positive_parameter('max_speed_rpm')
+
             if self._max_rpm > 6000:
                 raise ValueError('max_speed_rpm exceeds the 667065 mechanical limit (6000 rpm)')
             ids = [self.get_parameter(n + '_motor_id').value for n in self.MOTOR_NAMES]
+
             if len(set(ids)) != 4 or any(not 1 <= i <= 127 for i in ids):
                 raise ValueError('Four unique CANopen node IDs in [1, 127] are required')
+            
             self.declare_parameter('enabled_motor_ids', ids)
             self._motor_slots = self._selected_slots(
                 ids, self.get_parameter('enabled_motor_ids').value)
             self._directions = [self.get_parameter(n + '_direction').value
                                 for n in self.MOTOR_NAMES]
+            
             if any(d not in (-1, 1) for d in self._directions):
-                raise ValueError('Motor directions must be -1 or 1')
+                raise ValueError('Motor directions must be -1 or 1, Un-nomralized inputs recieved')
+
             interface = self.get_parameter('interface').value
             channel = self.get_parameter('channel').value
             if interface in ('kvaser', 'ixxat', 'vector'):
                 channel = int(channel)
             self._network.connect(interface=interface, channel=channel,
                                   bitrate=int(self._positive_parameter('bitrate')))
+            
             eds = self.get_parameter('eds_path').value or None
             for slot in self._motor_slots:
                 node_id = ids[slot]
@@ -87,6 +99,7 @@ class CANOpenNetwork(Node):
                 motor.sdo.RESPONSE_TIMEOUT = sdo_timeout
                 motor.sdo.MAX_RETRIES = 1
                 self._motors.append(motor)
+                
             # Prepare every drive before enabling any drive on a fresh command.
             for motor in self._motors:
                 self._write(motor, 0x6040, 0, 2)
@@ -341,6 +354,11 @@ class CANOpenNetwork(Node):
                     raise TimeoutError('Command expired during CAN transfer')
                 self._write(motor, 0x60FF, round(level * direction * self._max_rpm),
                             4, signed=True)
+                # ESCON2 PVM applies the target on a subsequent controlword write
+                # (Application Notes, Profile Velocity Mode, steps D and E).
+                if time.monotonic() - received >= self._timeout:
+                    raise TimeoutError('Command expired before applying velocity target')
+                self._write(motor, 0x6040, 0x000F, 2)
             self._last_update = received
             self._publish_status(True, f'{len(self._motors)} motor targets acknowledged')
         except Exception as exc:

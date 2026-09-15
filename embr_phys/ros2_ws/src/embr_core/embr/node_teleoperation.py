@@ -8,16 +8,14 @@ import time
 from typing import Optional
 
 import rclpy
+from embr_interfaces.msg import TeleCmd
 from rclpy.node import Node
-from std_msgs.msg import Float32MultiArray, Int32MultiArray, Float64
-
-from embr_interfaces.msg import TeleCmd 
+from std_msgs.msg import Int32MultiArray
 
 from embr.embr_hardware.ibus import (
     ChannelCalibration,
     IBusStreamDecoder,
     channels_to_drive,
-    mix_four_motor_levels,
 )
 
 
@@ -76,8 +74,8 @@ class Teleoperation(Node):
             )
         else:
             self._decoder = IBusStreamDecoder()
-            self._last_frame_time: Optional[float] = None
-            self._last_frame_display_time: Optional[float] = None
+            self._last_frame_time: float | None = None
+            self._last_frame_display_time: float | None = None
             self._frame_display_period = float(
                 self.get_parameter("frame_display_period").value
             )

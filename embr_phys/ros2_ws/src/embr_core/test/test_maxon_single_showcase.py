@@ -75,6 +75,7 @@ def prepare_sequence(handler):
     handler._previous_counts = 0
     handler._relative_counts = 0
     handler._counts_per_rev = 4096.0
+    handler._gear_ratio = 1.0
     handler._settled_since = None
     handler._move_started = 100.0
     handler._move_timeout = 30.0
@@ -129,6 +130,7 @@ def test_encoder_rollover(handler, before, after, delta):
 
 def encoder_objects(handler):
     handler._counts_per_rev = 4096.0
+    handler._gear_ratio = 1.0
     values = {(0x3000, 1): 0x110, (0x3010, 1): 1024,
               (0x60A8, 0): 0x00B50000, (0x60E4, 2): -1234}
     handler._motor.sdo.upload.side_effect = lambda index, sub: values[index, sub].to_bytes(
@@ -198,3 +200,20 @@ def test_shutdown_disables_even_when_quick_stop_fails(handler):
     assert handler._stop_all(disable=True)
     for motor in handler._motors:
         assert motor.sdo.download.call_args_list[-1] == call(0x6040, 0, bytes(2))
+
+
+@pytest.mark.parametrize('counts, expected', [(40960, 180), (20480, 90), (-20480, -90)])
+def test_20_to_1_output_angles(handler, counts, expected):
+    prepare_sequence(handler)
+    handler._gear_ratio = 20.0
+    handler._motor.sdo.upload.return_value = counts.to_bytes(4, 'little', signed=True)
+    handler._update_encoder_angle()
+    assert handler._angle == expected
+
+
+def test_geared_error_commands_motor_rpm(handler):
+    prepare_sequence(handler)
+    handler._gear_ratio = 20.0
+    handler._target_angle = 6.0  # 120 motor degrees: 10 motor rpm.
+    handler._run_sequence()
+    assert handler.motor_velocity_callback.call_args.args[0].data == [10.0 / 1000]

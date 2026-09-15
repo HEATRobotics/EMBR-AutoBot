@@ -102,7 +102,7 @@ ros2 run embr_core showcase --ros-args -p channel:=can0 \
 ```
 
 This starts motion automatically on `showcase_motor` (default ID 1), using
-startup as center. It performs relative motor-shaft rotations in degrees:
+startup as center. It performs relative gearbox-output rotations in degrees:
 `180, 90, 180, -90, 180, 180, 90, -90, -90, -90, 180, 90`, returns to
 startup center, then repeats until Ctrl+C. It does not subscribe to external
 velocity commands. Run it with exclusive control of that drive.
@@ -145,10 +145,20 @@ bytes. A successful reply does not prove that the counter changes with shaft
 movement. One motor-shaft revolution corresponds to 4096 counts with this
 encoder configuration.
 
-`showcase_speed_rpm` caps movement speed (default 10 rpm); movement slows near
+`gear_ratio` defaults to **20.0 motor revolutions per output revolution**.
+Encoder scaling stays at 4096 counts per motor revolution. A 180-degree output
+move requires 10 motor revolutions. Use the exact gearbox ratio when known;
+output accuracy depends on this ratio and gearbox backlash. Set `gear_ratio:=1.0`
+for motor-shaft angles.
+
+`showcase_speed_rpm` caps **motor** speed (default 10 rpm, or 0.5 output rpm
+at 20:1); movement slows near
 its target. `showcase_pause` requires a settled pause between moves (default
-1 s), `angle_tolerance` defaults to 3 degrees, and `move_timeout` defaults to
-30 s per movement including settling. A timeout or communication fault stops
+1 s), `angle_tolerance` defaults to 3 output degrees, and `move_timeout` defaults to
+600 s per movement including settling, allowing the longer return to center
+at 20:1 gearing. A 180-degree output move takes at least 60 seconds at the
+default motor speed; returning from the sequence’s net +810 degrees takes
+about 270 seconds plus settling. A timeout or communication fault stops
 motion and requires restart. Commissioned acceleration/deceleration settings
 still apply. Ctrl+C sends quick stop, zero velocity, and disable voltage;
 disabling removes holding torque and does not confirm physical standstill.

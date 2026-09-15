@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """One ESCON2 drive in profile velocity mode, using canopen-python.
 
-Defaults to CANopen motor ID 1 and repeats relative motor-shaft rotations.
+Defaults to CANopen motor ID 1 and repeats relative gearbox-output rotations.
 Position comes from Sensor 2 incremental encoder feedback (0x60E4:02);
-startup defines zero. A 1024-pulse encoder supplies 4096 counts/revolution.
+startup defines zero. A 1024-pulse encoder supplies 4096 counts per motor
+revolution; gear_ratio defaults to 20 motor revolutions per output revolution.
 Commission the EC-i 52 (667065) motor and motion ramps in Motion Studio first.
 """
 
@@ -55,7 +56,8 @@ class CANOpenNetwork(Node):
         self.declare_parameter('showcase_speed_rpm', 10.0)
         self.declare_parameter('showcase_pause', 1.0)
         self.declare_parameter('angle_tolerance', 3.0)
-        self.declare_parameter('move_timeout', 30.0)
+        self.declare_parameter('move_timeout', 600.0)
+        self.declare_parameter('gear_ratio', 20.0)
         self.declare_parameter('encoder_counts_per_rev', 4096.0)
 
         self._network = canopen.Network()
@@ -76,6 +78,7 @@ class CANOpenNetwork(Node):
             self._tolerance = self._positive_parameter('angle_tolerance')
             self._move_timeout = self._positive_parameter('move_timeout')
             self._counts_per_rev = self._positive_parameter('encoder_counts_per_rev')
+            self._gear_ratio = self._positive_parameter('gear_ratio')
             if not 1 <= self._showcase_rpm <= self._max_rpm:
                 raise ValueError('showcase_speed_rpm must be between 1 and max_speed_rpm')
             if period >= self._timeout:
@@ -131,7 +134,8 @@ class CANOpenNetwork(Node):
             self._move_started = time.monotonic()
             self._timer = self.create_timer(period, self._run_sequence)
             self.get_logger().info(
-                'Repeating relative rotations; startup is encoder zero. '
+                f'Repeating relative output rotations with {self._gear_ratio:g}:1 gearing; '
+                'startup is encoder zero. '
                 'Sensor 2 position: 0x60E4:02; Ctrl+C disables the drive.')
         except (Exception, KeyboardInterrupt):
             self._stop_all(disable=True)
@@ -166,7 +170,7 @@ class CANOpenNetwork(Node):
         delta = (counts - self._previous_counts + (1 << 31)) % (1 << 32) - (1 << 31)
         self._relative_counts += delta
         self._previous_counts = counts
-        self._angle = self._relative_counts * 360.0 / self._counts_per_rev
+        self._angle = self._relative_counts * 360.0 / (self._counts_per_rev * self._gear_ratio)
 
     def _run_sequence(self):
         """Run velocity control toward S2 encoder targets, checking speed to settle.
@@ -204,14 +208,15 @@ class CANOpenNetwork(Node):
                         self._settled_since = None
                         self._move_started = now
                         self.get_logger().info(
-                            f'Showcase target: {self._target_angle:.1f} degrees (Sensor 2 encoder)')
+                            f'Showcase target: {self._target_angle:.1f} output degrees (Sensor 2 encoder)')
                 else:
                     self._settled_since = None
             else:
                 self._settled_since = None
-                # Slow down near the target; the drive retains commissioned ramps.
+                # Convert output error to motor degrees; speed limits remain motor rpm.
+                # The drive retains commissioned ramps.
                 command_rpm = math.copysign(
-                    min(self._showcase_rpm, max(1.0, abs(error) / 12.0)), error)
+                    min(self._showcase_rpm, max(1.0, abs(error) * self._gear_ratio / 12.0)), error)
             command = Float32MultiArray()
             command.data = [command_rpm / self._max_rpm]
             self.motor_velocity_callback(command)

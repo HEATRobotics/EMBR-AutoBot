@@ -40,14 +40,14 @@ class CANOpenNetwork(Node):
         """
         super().__init__('canopen_handler')
         
-        self.declare_parameter('interface', 'kvaser')
-        self.declare_parameter('channel', '0')
+        self.declare_parameter('interface', 'socketcan')
+        self.declare_parameter('channel', 'can0')
         self.declare_parameter('bitrate', 1000000)
         self.declare_parameter('command_timeout', 0.5)
         self.declare_parameter('publish_period', 0.05)
         self.declare_parameter('sdo_timeout', 0.05)
         self.declare_parameter('state_timeout', 2.0)
-        self.declare_parameter('max_speed_rpm', 0.0)
+        self.declare_parameter('max_speed_rpm', 6000.0)
         self.declare_parameter('eds_path', '')
         self.declare_parameter('front_left_motor_id', 1)
         self.declare_parameter('front_right_motor_id', 2)

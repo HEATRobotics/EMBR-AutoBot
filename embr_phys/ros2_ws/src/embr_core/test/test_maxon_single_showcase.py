@@ -72,8 +72,9 @@ def prepare_sequence(handler):
     handler._motor.sdo.upload.return_value = bytes(4)
     handler._angle = handler._target_angle = 0.0
     handler._sequence_index = -1
-    handler._sample_time = None
-    handler._previous_rpm = 0.0
+    handler._previous_counts = 0
+    handler._relative_counts = 0
+    handler._counts_per_rev = 4096.0
     handler._settled_since = None
     handler._move_started = 100.0
     handler._move_timeout = 30.0
@@ -85,6 +86,7 @@ def prepare_sequence(handler):
 
 def test_sequence_repeats_via_startup_center(handler):
     prepare_sequence(handler)
+    handler._update_encoder_angle = Mock()
     expected = (180, 90, 180, -90, 180, 180, 90, -90, -90, -90, 180, 90)
     for delta in expected:
         handler._angle = handler._target_angle
@@ -103,15 +105,80 @@ def test_sequence_repeats_via_startup_center(handler):
     assert handler._target_angle == 180.0
 
 
-def test_integrates_signed_actual_speed(handler):
+@pytest.mark.parametrize('counts, angle', [(1024, 90), (2048, 180), (-1024, -90)])
+def test_encoder_angle_ignores_velocity_integration(handler, counts, angle):
     prepare_sequence(handler)
-    handler._motor.sdo.upload.return_value = (-10).to_bytes(4, 'little', signed=True)
-    handler._sample_time = 99.9
-    handler._previous_rpm = -10.0
-    handler._target_angle = -90.0
+    handler._motor.sdo.upload.side_effect = lambda index, sub: (
+        counts if (index, sub) == (0x60E4, 2) else 0
+    ).to_bytes(4, 'little', signed=True)
+    handler._target_angle = -180.0
     handler._run_sequence()
-    assert handler._angle == pytest.approx(-6.0)
-    assert handler.motor_velocity_callback.call_args.args[0].data[0] < 0
+    assert handler._angle == angle
+    handler._motor.sdo.upload.assert_any_call(0x60E4, 2)
+
+
+@pytest.mark.parametrize('before, after, delta', [
+    (2147483647, -2147483648, 1), (-2147483648, 2147483647, -1)])
+def test_encoder_rollover(handler, before, after, delta):
+    prepare_sequence(handler)
+    handler._previous_counts = before
+    handler._motor.sdo.upload.return_value = after.to_bytes(4, 'little', signed=True)
+    handler._update_encoder_angle()
+    assert handler._relative_counts == delta
+
+
+def encoder_objects(handler):
+    handler._counts_per_rev = 4096.0
+    values = {(0x3000, 1): 0x110, (0x3010, 1): 1024,
+              (0x60A8, 0): 0x00B50000, (0x60E4, 2): -1234}
+    handler._motor.sdo.upload.side_effect = lambda index, sub: values[index, sub].to_bytes(
+        4, 'little', signed=True)
+    return values
+
+
+def test_encoder_startup_captures_nonzero_reference(handler):
+    encoder_objects(handler)
+    handler._initialize_encoder()
+    handler._update_encoder_angle()
+    assert handler._previous_counts == -1234
+    assert handler._angle == 0
+    handler._motor.sdo.download.assert_not_called()
+
+
+@pytest.mark.parametrize('key, value', [((0x3000, 1), 0x10),
+    ((0x3010, 1), 500), ((0x60A8, 0), 0)])
+def test_encoder_rejects_wrong_commissioning(handler, key, value):
+    values = encoder_objects(handler)
+    values[key] = value
+    with pytest.raises(ValueError):
+        handler._initialize_encoder()
+    handler._motor.sdo.download.assert_not_called()
+
+
+def test_missing_position_object_fails_before_motion(handler):
+    values = encoder_objects(handler)
+    del values[0x60E4, 2]
+    with pytest.raises(KeyError):
+        handler._initialize_encoder()
+    handler._motor.sdo.download.assert_not_called()
+
+
+def test_encoder_read_failure_stops_sequence(handler):
+    prepare_sequence(handler)
+    handler._motor.sdo.upload.side_effect = TimeoutError('encoder unavailable')
+    handler._run_sequence()
+    assert 'encoder unavailable' in handler._fault
+    handler.motor_velocity_callback.assert_not_called()
+
+
+def test_motion_does_not_settle_while_speed_is_nonzero(handler):
+    prepare_sequence(handler)
+    handler._settled_since = 98.0
+    handler._motor.sdo.upload.side_effect = lambda index, sub: (
+        10 if index == 0x606C else 0).to_bytes(4, 'little', signed=True)
+    handler._run_sequence()
+    assert handler._sequence_index == -1
+    assert handler._settled_since is None
 
 
 def test_stalled_sequence_latches_stop(handler):

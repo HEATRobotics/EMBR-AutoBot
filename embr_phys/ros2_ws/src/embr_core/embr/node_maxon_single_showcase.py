@@ -2,7 +2,8 @@
 """One ESCON2 drive in profile velocity mode, using canopen-python.
 
 Defaults to CANopen motor ID 1 and repeats relative motor-shaft rotations.
-Position is estimated by integrating measured rpm; startup defines zero.
+Position comes from Sensor 2 incremental encoder feedback (0x60E4:02);
+startup defines zero. A 1024-pulse encoder supplies 4096 counts/revolution.
 Commission the EC-i 52 (667065) motor and motion ramps in Motion Studio first.
 """
 
@@ -55,6 +56,7 @@ class CANOpenNetwork(Node):
         self.declare_parameter('showcase_pause', 1.0)
         self.declare_parameter('angle_tolerance', 3.0)
         self.declare_parameter('move_timeout', 30.0)
+        self.declare_parameter('encoder_counts_per_rev', 4096.0)
 
         self._network = canopen.Network()
         self._motors = []
@@ -73,6 +75,7 @@ class CANOpenNetwork(Node):
             self._pause = self._positive_parameter('showcase_pause')
             self._tolerance = self._positive_parameter('angle_tolerance')
             self._move_timeout = self._positive_parameter('move_timeout')
+            self._counts_per_rev = self._positive_parameter('encoder_counts_per_rev')
             if not 1 <= self._showcase_rpm <= self._max_rpm:
                 raise ValueError('showcase_speed_rpm must be between 1 and max_speed_rpm')
             if period >= self._timeout:
@@ -118,30 +121,58 @@ class CANOpenNetwork(Node):
             self._write(self._motor, 0x6060, 3, 1, signed=True)
             if self._read(self._motor, 0x6061) != 3:
                 raise RuntimeError(f'Node {self._motor.id}: profile velocity mode not selected')
+            self._initialize_encoder()
             self._motor.nmt.state = 'OPERATIONAL'
 
             self._angle = 0.0
             self._target_angle = 0.0
             self._sequence_index = -1  # Center before the first move and each repeat.
-            self._sample_time = None
-            self._previous_rpm = 0.0
             self._settled_since = None
             self._move_started = time.monotonic()
             self._timer = self.create_timer(period, self._run_sequence)
             self.get_logger().info(
-                'Repeating relative rotations; startup is estimated center. '
-                'Angles use integrated measured velocity; Ctrl+C disables the drive.')
+                'Repeating relative rotations; startup is encoder zero. '
+                'Sensor 2 position: 0x60E4:02; Ctrl+C disables the drive.')
         except (Exception, KeyboardInterrupt):
             self._stop_all(disable=True)
             self._network.disconnect()
             super().destroy_node()
             raise
 
-    def _run_sequence(self):
-        """Advance motion without blocking ROS; integrate signed measured shaft rpm.
+    def _initialize_encoder(self):
+        """Validate commissioned S2 settings and capture startup before enabling.
 
-        ESCON2 PVM has no position target. This estimate drifts and does not
-        replace encoder position feedback or physical homing.
+        ESCON2 Firmware Specification 2026-02: sections 6.2.44.1,
+        6.2.47.1, 6.2.127, and 6.2.134.2. Do not rewrite commissioning.
+        """
+        sensors = self._read(self._motor, 0x3000, subindex=1)
+        if (sensors >> 8) & 0xFF != 1:
+            raise ValueError('Configure Sensor 2 as digital incremental encoder (0x3000:01)')
+        pulses = self._read(self._motor, 0x3010, subindex=1)
+        if not 16 <= pulses <= 2500000 or pulses * 4 != self._counts_per_rev:
+            raise ValueError(
+                f'Sensor 2 has {pulses} pulses/rev (0x3010:01); '
+                f'encoder_counts_per_rev must match four times this value '
+                f'(configured {self._counts_per_rev:g})')
+        if self._read(self._motor, 0x60A8) != 0x00B50000:
+            raise ValueError('Configure position units as increments (0x60A8)')
+        # Unsupported firmware/objects must fail before motion; no velocity fallback.
+        self._previous_counts = self._read_signed(self._motor, 0x60E4, subindex=2)
+        self._relative_counts = 0
+
+    def _update_encoder_angle(self):
+        """Unwrap signed 32-bit S2 counts relative to the startup sample."""
+        counts = self._read_signed(self._motor, 0x60E4, subindex=2)
+        delta = (counts - self._previous_counts + (1 << 31)) % (1 << 32) - (1 << 31)
+        self._relative_counts += delta
+        self._previous_counts = counts
+        self._angle = self._relative_counts * 360.0 / self._counts_per_rev
+
+    def _run_sequence(self):
+        """Run velocity control toward S2 encoder targets, checking speed to settle.
+
+        Startup is a relative reference, not absolute encoder homing. Drive
+        ramps and sample timing still affect positioning and overshoot.
         """
         if self._fault or self._closed:
             return
@@ -152,13 +183,9 @@ class CANOpenNetwork(Node):
             if (self._last_update is not None
                     and time.monotonic() - self._last_update > self._timeout):
                 raise TimeoutError('Showcase command timeout')
-            rpm = int.from_bytes(self._motor.sdo.upload(0x606C, 0),
-                                 'little', signed=True)
+            self._update_encoder_angle()
+            rpm = self._read_signed(self._motor, 0x606C)
             now = time.monotonic()
-            if self._sample_time is not None:
-                self._angle += (self._previous_rpm + rpm) * 3.0 * (now - self._sample_time)
-            self._sample_time = now
-            self._previous_rpm = rpm
             error = self._target_angle - self._angle
             if now - self._move_started > self._move_timeout:
                 raise TimeoutError('Showcase move did not settle before move_timeout')
@@ -177,7 +204,7 @@ class CANOpenNetwork(Node):
                         self._settled_since = None
                         self._move_started = now
                         self.get_logger().info(
-                            f'Showcase target: {self._target_angle:.1f} estimated degrees')
+                            f'Showcase target: {self._target_angle:.1f} degrees (Sensor 2 encoder)')
                 else:
                     self._settled_since = None
             else:
@@ -237,7 +264,7 @@ class CANOpenNetwork(Node):
         motor.sdo.download(index, 0, int(value).to_bytes(size, 'little', signed=signed))
 
     @staticmethod
-    def _read(motor, index):
+    def _read(motor, index, subindex=0):
         """
         ## Def:
             Read object subindex 0 using a CANopen SDO upload and decode its bytes
@@ -253,7 +280,15 @@ class CANOpenNetwork(Node):
         ## Raises:
             CANopen/transport errors: The SDO read is rejected or communication fails.
         """
-        return int.from_bytes(motor.sdo.upload(index, 0), 'little')
+        return int.from_bytes(motor.sdo.upload(index, subindex), 'little')
+
+    @staticmethod
+    def _read_signed(motor, index, subindex=0):
+        """Read a signed INTEGER32 feedback object at the specified subindex."""
+        data = motor.sdo.upload(index, subindex)
+        if len(data) != 4:
+            raise ValueError(f'Expected INTEGER32 at 0x{index:04X}:{subindex:02X}')
+        return int.from_bytes(data, 'little', signed=True)
 
     def _wait_state(self, motor, expected):
         """

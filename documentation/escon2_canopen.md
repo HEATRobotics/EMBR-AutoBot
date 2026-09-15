@@ -107,11 +107,43 @@ startup as center. It performs relative motor-shaft rotations in degrees:
 startup center, then repeats until Ctrl+C. It does not subscribe to external
 velocity commands. Run it with exclusive control of that drive.
 
-ESCON2 profile velocity mode does not provide position commands. The showcase
-estimates shaft angle by integrating signed actual velocity (`0x606C`, rpm)
-with monotonic timestamps. Angles and return-to-center are approximate and
-can drift; startup center is a software reference, not physical homing.
-See the [ESCON2 firmware specification](https://www.maxongroup.com/medias/sys_master/root/9350565003294/ESCON2-Firmware-Specification-En.pdf).
+The showcase uses **Sensor 2 digital incremental encoder** feedback, connected
+to X5 on the ESCON2 Compact hardware. Configure Sensor 2 as digital incremental
+encoder in Motion Studio (`0x3000:01`, bits 15–8 = 1), and set `0x3010:01` to
+**1024 pulses/revolution** for this encoder. Quadrature decoding gives
+**4096 increments/revolution**, the default `encoder_counts_per_rev` parameter.
+The node checks that this parameter equals four times the commissioned pulse
+count, and that `0x60A8` specifies increments (`0x00B50000`), before enabling.
+It reads settings without changing or saving commissioning parameters.
+
+Position is signed INTEGER32 **`0x60E4:02` (Position actual value sensor 2)**,
+not `0x6064`. These objects are documented in the
+[ESCON2 Firmware Specification, 2026-02](https://www.maxongroup.com/medias/sys_master/root/9523021185054/ESCON2-Firmware-Specification-En.pdf),
+sections 6.2.47.1, 6.2.127 and 6.2.134.2. X5/Sensor 2 wiring is documented in
+the [Compact 60/30 hardware reference](https://www.maxongroup.com/medias/sys_master/root/9523021381662/ESCON2-Compact-60-30-Hardware-Reference-En.pdf).
+Installed firmware must support these objects; an unavailable position object
+fails startup before motion, with no fallback to integrating speed.
+
+The node captures startup encoder counts while disabled and unwraps 32-bit
+counter rollover. Position no longer accumulates velocity-integration drift.
+This is an incremental reference, not an absolute encoder or physical homing;
+a successful SDO read alone cannot prove correct wiring or detect every missed
+encoder pulse. Commission feedback direction to agree with commanded shaft
+rotation. Measured velocity (`0x606C`) still gates settling. Velocity control,
+drive ramps, sampling, and the configured tolerance affect positioning accuracy.
+
+To inspect S2 feedback on node 1 without starting the showcase, stop the ROS
+node, keep the drive disabled and NMT pre-operational, run `candump can0` in
+another terminal, then request:
+
+```sh
+cansend can0 601#40E4600200000000
+```
+
+The reply on `581` contains signed little-endian counts after the first four
+bytes. A successful reply does not prove that the counter changes with shaft
+movement. One motor-shaft revolution corresponds to 4096 counts with this
+encoder configuration.
 
 `showcase_speed_rpm` caps movement speed (default 10 rpm); movement slows near
 its target. `showcase_pause` requires a settled pause between moves (default

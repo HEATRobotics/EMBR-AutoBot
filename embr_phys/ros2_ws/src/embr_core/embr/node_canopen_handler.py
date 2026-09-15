@@ -109,7 +109,7 @@ class CANOpenNetwork(Node):
                 if unit != 0x00B44700:
                     raise ValueError(f'Node {motor.id}: configure velocity units as rpm (0x60A9)')
                 max_motor_rpm = self._read(motor, 0x6080)
-                # max_profile_rpm = self._read(motor, 0x607F)
+                max_profile_rpm = self._read(motor, 0x607F)
                 if self._max_rpm > min(max_motor_rpm, max_profile_rpm):
                     raise ValueError(
                         f'Node {motor.id}: requested max_speed_rpm={self._max_rpm:g} '

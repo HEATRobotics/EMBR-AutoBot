@@ -25,6 +25,7 @@ setup(
         "console_scripts": [
             "CANopen = embr.node_canopen_handler:main",
             "drivetrain = embr.node_maxon_drivetrain:main",
+            "showcase = embr.node_maxon_single_showcase:main",
             "teleoperation = embr.node_teleoperation:main",
         ],
     },

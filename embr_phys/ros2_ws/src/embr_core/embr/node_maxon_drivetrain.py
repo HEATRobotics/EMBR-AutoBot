@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Route normalized teleoperation commands to CANopen or the RViz drivetrain."""
 
 import math

@@ -78,7 +78,8 @@ Drives stay disabled at startup until a valid command arrives. Invalid input,
 a command timeout (default 0.5 s), disabled/faulted drives or communication
 errors trigger a best-effort quick stop on all selected drives and latch failure.
 Correct the cause and restart the node to resume; faults are never reset
-automatically. Normal shutdown also attempts quick stop. Acknowledgement of a
+automatically. Normal shutdown (including Ctrl+C) attempts quick stop, zero target velocity,
+and disable voltage before disconnecting, in both CAN communication nodes. Acknowledgement of a
 stop does not confirm standstill. If CAN is disconnected, software cannot
 ensure stopping: commission an independent drive-side communication watchdog
 and physical stop circuit. This handler does not configure a heartbeat consumer
@@ -91,3 +92,31 @@ Transport contract tests can run without ROS or CAN hardware:
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
   embr_phys/ros2_ws/src/embr_core/test/test_canopen_handler.py
 ```
+
+
+## Continuous single-motor showcase
+
+```sh
+ros2 run embr_core showcase --ros-args -p channel:=can0 \
+  -p showcase_speed_rpm:=10.0
+```
+
+This starts motion automatically on `showcase_motor` (default ID 1), using
+startup as center. It performs relative motor-shaft rotations in degrees:
+`180, 90, 180, -90, 180, 180, 90, -90, -90, -90, 180, 90`, returns to
+startup center, then repeats until Ctrl+C. It does not subscribe to external
+velocity commands. Run it with exclusive control of that drive.
+
+ESCON2 profile velocity mode does not provide position commands. The showcase
+estimates shaft angle by integrating signed actual velocity (`0x606C`, rpm)
+with monotonic timestamps. Angles and return-to-center are approximate and
+can drift; startup center is a software reference, not physical homing.
+See the [ESCON2 firmware specification](https://www.maxongroup.com/medias/sys_master/root/9350565003294/ESCON2-Firmware-Specification-En.pdf).
+
+`showcase_speed_rpm` caps movement speed (default 10 rpm); movement slows near
+its target. `showcase_pause` requires a settled pause between moves (default
+1 s), `angle_tolerance` defaults to 3 degrees, and `move_timeout` defaults to
+30 s per movement including settling. A timeout or communication fault stops
+motion and requires restart. Commissioned acceleration/deceleration settings
+still apply. Ctrl+C sends quick stop, zero velocity, and disable voltage;
+disabling removes holding torque and does not confirm physical standstill.

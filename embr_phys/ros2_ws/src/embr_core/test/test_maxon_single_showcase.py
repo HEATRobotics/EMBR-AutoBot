@@ -63,3 +63,71 @@ def test_showcase_motor_fault_is_monitored(handler):
     handler._publish_frame()
     assert 'drive fault or disabled' in handler._fault
     handler._motor.sdo.download.assert_any_call(0x60FF, 0, bytes(4))
+
+
+def prepare_sequence(handler):
+    handler._closed = False
+    handler._network = Mock()
+    handler._motor.emcy = SimpleNamespace(active=[])
+    handler._motor.sdo.upload.return_value = bytes(4)
+    handler._angle = handler._target_angle = 0.0
+    handler._sequence_index = -1
+    handler._sample_time = None
+    handler._previous_rpm = 0.0
+    handler._settled_since = None
+    handler._move_started = 100.0
+    handler._move_timeout = 30.0
+    handler._pause = 1.0
+    handler._tolerance = 3.0
+    handler._showcase_rpm = 10.0
+    handler.motor_velocity_callback = Mock()
+
+
+def test_sequence_repeats_via_startup_center(handler):
+    prepare_sequence(handler)
+    expected = (180, 90, 180, -90, 180, 180, 90, -90, -90, -90, 180, 90)
+    for delta in expected:
+        handler._angle = handler._target_angle
+        previous = handler._angle
+        handler._settled_since = 98.0
+        handler._run_sequence()
+        assert handler._target_angle == previous + delta
+    handler._angle = handler._target_angle
+    handler._settled_since = 98.0
+    handler._run_sequence()
+    assert handler._target_angle == 0.0
+    assert handler._sequence_index == -1
+    handler._angle = 0.0
+    handler._settled_since = 98.0
+    handler._run_sequence()
+    assert handler._target_angle == 180.0
+
+
+def test_integrates_signed_actual_speed(handler):
+    prepare_sequence(handler)
+    handler._motor.sdo.upload.return_value = (-10).to_bytes(4, 'little', signed=True)
+    handler._sample_time = 99.9
+    handler._previous_rpm = -10.0
+    handler._target_angle = -90.0
+    handler._run_sequence()
+    assert handler._angle == pytest.approx(-6.0)
+    assert handler.motor_velocity_callback.call_args.args[0].data[0] < 0
+
+
+def test_stalled_sequence_latches_stop(handler):
+    prepare_sequence(handler)
+    handler._move_started = 60.0
+    handler._run_sequence()
+    assert 'move_timeout' in handler._fault
+    handler.motor_velocity_callback.assert_not_called()
+
+
+def test_shutdown_disables_even_when_quick_stop_fails(handler):
+    def fail_quick_stop(index, subindex, data):
+        if index == 0x6040 and data == b'\x0b\x00':
+            raise TimeoutError('quick stop failed')
+    for motor in handler._motors:
+        motor.sdo.download.side_effect = fail_quick_stop
+    assert handler._stop_all(disable=True)
+    for motor in handler._motors:
+        assert motor.sdo.download.call_args_list[-1] == call(0x6040, 0, bytes(2))

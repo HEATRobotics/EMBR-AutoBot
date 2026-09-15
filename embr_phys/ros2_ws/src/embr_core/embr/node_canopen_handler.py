@@ -129,8 +129,8 @@ class CANOpenNetwork(Node):
             self.get_logger().info(
                 f'ESCON2 node IDs {[m.id for m in self._motors]} ready; '
                 'waiting for motor levels')
-        except Exception:
-            self._stop_all()
+        except (Exception, KeyboardInterrupt):
+            self._stop_all(disable=True)
             self._network.disconnect()
             super().destroy_node()
             raise
@@ -250,10 +250,11 @@ class CANOpenNetwork(Node):
             time.sleep(0.01)
         raise TimeoutError(f'Node {motor.id}: drive state transition timed out')
 
-    def _stop_all(self):
+    def _stop_all(self, disable=False):
         """
         ## Def:
             Attempt quick stop and a zero velocity target on every selected drive.
+            With disable=True, also disable voltage before disconnecting CAN.
             Continue attempting other writes if a drive is unreachable. A successful
             write does not confirm that the motor has reached standstill.
 
@@ -269,7 +270,10 @@ class CANOpenNetwork(Node):
         errors = []
         for motor in self._motors:
             # Quick stop uses the commissioned quick-stop option and ramp.
-            for index, value, size in ((0x6040, 0x000B, 2), (0x60FF, 0, 4)):
+            commands = [(0x6040, 0x000B, 2), (0x60FF, 0, 4)]
+            if disable:
+                commands.append((0x6040, 0x0000, 2))
+            for index, value, size in commands:
                 try:
                     self._write(motor, index, value, size)
                 except Exception as exc:
@@ -424,7 +428,7 @@ class CANOpenNetwork(Node):
         if not self._closed:
             self._closed = True
             self._timer.cancel()
-            errors = self._stop_all()
+            errors = self._stop_all(disable=True)
             if errors:
                 self.get_logger().error('Shutdown stop unconfirmed: ' + '; '.join(errors))
             self._network.disconnect()

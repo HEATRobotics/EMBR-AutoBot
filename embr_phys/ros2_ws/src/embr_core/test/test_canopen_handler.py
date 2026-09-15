@@ -160,3 +160,14 @@ def test_invalid_selection(handler, selection):
 
 def test_selection_order_and_remapped_ids(handler):
     assert handler._selected_slots([11, 13, 12, 14], [14, 13]) == [1, 3]
+
+
+def test_shutdown_disables_even_when_quick_stop_fails(handler):
+    def fail_quick_stop(index, subindex, data):
+        if index == 0x6040 and data == b'\x0b\x00':
+            raise TimeoutError('quick stop failed')
+    for motor in handler._motors:
+        motor.sdo.download.side_effect = fail_quick_stop
+    assert handler._stop_all(disable=True)
+    for motor in handler._motors:
+        assert motor.sdo.download.call_args_list[-1] == call(0x6040, 0, bytes(2))

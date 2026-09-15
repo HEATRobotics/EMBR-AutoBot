@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """One ESCON2 drive in profile velocity mode, using canopen-python.
 
-Defaults to CANopen motor ID 1. Commands on motor_velocity_levels contain one
-normalized motor-shaft speed, or four speeds (FL, BL, FR, BR) with only FL used.
+Defaults to CANopen motor ID 1 and repeats relative motor-shaft rotations.
+Position is estimated by integrating measured rpm; startup defines zero.
 Commission the EC-i 52 (667065) motor and motion ramps in Motion Studio first.
 """
 
@@ -12,18 +12,19 @@ import time
 import canopen
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile
 from embr_interfaces.msg import OperationStatus
 from std_msgs.msg import Float32MultiArray
 
 
 class CANOpenNetwork(Node):
 
+    SEQUENCE = (180, 90, 180, -90, 180, 180, 90, -90, -90, -90, 180, 90)
+
     def __init__(self):
         """
         ## Def:
             Create the ROS node, validate configuration, and initialize selected ESCON2
-            drives in profile velocity mode. Drives are enabled on the first valid command.
+            drives in profile velocity mode. The timer automatically starts the showcase.
             The default CANopen motor ID is 1.
 
         ## Args:
@@ -50,6 +51,10 @@ class CANOpenNetwork(Node):
         self.declare_parameter('max_speed_rpm', 6000.0)
         self.declare_parameter('eds_path', '')
         self.declare_parameter('showcase_motor', 1)
+        self.declare_parameter('showcase_speed_rpm', 10.0)
+        self.declare_parameter('showcase_pause', 1.0)
+        self.declare_parameter('angle_tolerance', 3.0)
+        self.declare_parameter('move_timeout', 30.0)
 
         self._network = canopen.Network()
         self._motors = []
@@ -63,6 +68,15 @@ class CANOpenNetwork(Node):
             period = self._positive_parameter('publish_period')
             sdo_timeout = self._positive_parameter('sdo_timeout')
             self._max_rpm = self._positive_parameter('max_speed_rpm')
+
+            self._showcase_rpm = self._positive_parameter('showcase_speed_rpm')
+            self._pause = self._positive_parameter('showcase_pause')
+            self._tolerance = self._positive_parameter('angle_tolerance')
+            self._move_timeout = self._positive_parameter('move_timeout')
+            if not 1 <= self._showcase_rpm <= self._max_rpm:
+                raise ValueError('showcase_speed_rpm must be between 1 and max_speed_rpm')
+            if period >= self._timeout:
+                raise ValueError('publish_period must be less than command_timeout')
 
             if self._max_rpm > 6000:
                 raise ValueError('max_speed_rpm exceeds the 667065 mechanical limit (6000 rpm)')
@@ -106,18 +120,76 @@ class CANOpenNetwork(Node):
                 raise RuntimeError(f'Node {self._motor.id}: profile velocity mode not selected')
             self._motor.nmt.state = 'OPERATIONAL'
 
-            self._motor_subscriber = self.create_subscription(
-                Float32MultiArray, 'motor_velocity_levels', self.motor_velocity_callback,
-                QoSProfile(depth=1))
-            self._timer = self.create_timer(period, self._publish_frame)
+            self._angle = 0.0
+            self._target_angle = 0.0
+            self._sequence_index = -1  # Center before the first move and each repeat.
+            self._sample_time = None
+            self._previous_rpm = 0.0
+            self._settled_since = None
+            self._move_started = time.monotonic()
+            self._timer = self.create_timer(period, self._run_sequence)
             self.get_logger().info(
-                f'ESCON2 node IDs {[m.id for m in self._motors]} ready; '
-                'waiting for motor levels')
-        except Exception:
-            self._stop_all()
+                'Repeating relative rotations; startup is estimated center. '
+                'Angles use integrated measured velocity; Ctrl+C disables the drive.')
+        except (Exception, KeyboardInterrupt):
+            self._stop_all(disable=True)
             self._network.disconnect()
             super().destroy_node()
             raise
+
+    def _run_sequence(self):
+        """Advance motion without blocking ROS; integrate signed measured shaft rpm.
+
+        ESCON2 PVM has no position target. This estimate drifts and does not
+        replace encoder position feedback or physical homing.
+        """
+        if self._fault or self._closed:
+            return
+        try:
+            self._network.check()
+            if self._motor.emcy.active:
+                raise RuntimeError('Drive emergency active')
+            if (self._last_update is not None
+                    and time.monotonic() - self._last_update > self._timeout):
+                raise TimeoutError('Showcase command timeout')
+            rpm = int.from_bytes(self._motor.sdo.upload(0x606C, 0),
+                                 'little', signed=True)
+            now = time.monotonic()
+            if self._sample_time is not None:
+                self._angle += (self._previous_rpm + rpm) * 3.0 * (now - self._sample_time)
+            self._sample_time = now
+            self._previous_rpm = rpm
+            error = self._target_angle - self._angle
+            if now - self._move_started > self._move_timeout:
+                raise TimeoutError('Showcase move did not settle before move_timeout')
+            if abs(error) <= self._tolerance:
+                command_rpm = 0.0
+                if abs(rpm) <= 1:
+                    if self._settled_since is None:
+                        self._settled_since = now
+                    if now - self._settled_since >= self._pause:
+                        self._sequence_index += 1
+                        if self._sequence_index == len(self.SEQUENCE):
+                            self._sequence_index = -1
+                            self._target_angle = 0.0
+                        else:
+                            self._target_angle = self._angle + self.SEQUENCE[self._sequence_index]
+                        self._settled_since = None
+                        self._move_started = now
+                        self.get_logger().info(
+                            f'Showcase target: {self._target_angle:.1f} estimated degrees')
+                else:
+                    self._settled_since = None
+            else:
+                self._settled_since = None
+                # Slow down near the target; the drive retains commissioned ramps.
+                command_rpm = math.copysign(
+                    min(self._showcase_rpm, max(1.0, abs(error) / 12.0)), error)
+            command = Float32MultiArray()
+            command.data = [command_rpm / self._max_rpm]
+            self.motor_velocity_callback(command)
+        except Exception as exc:
+            self._fail(f'Showcase failed: {exc}; restart required')
 
     def _positive_parameter(self, name):
         """
@@ -211,10 +283,11 @@ class CANOpenNetwork(Node):
             time.sleep(0.01)
         raise TimeoutError(f'Node {motor.id}: drive state transition timed out')
 
-    def _stop_all(self):
+    def _stop_all(self, disable=False):
         """
         ## Def:
             Attempt quick stop and a zero velocity target on every selected drive.
+            With disable=True, also disable voltage before disconnecting CAN.
             Continue attempting other writes if a drive is unreachable. A successful
             write does not confirm that the motor has reached standstill.
 
@@ -230,7 +303,10 @@ class CANOpenNetwork(Node):
         errors = []
         for motor in self._motors:
             # Quick stop uses the commissioned quick-stop option and ramp.
-            for index, value, size in ((0x6040, 0x000B, 2), (0x60FF, 0, 4)):
+            commands = [(0x6040, 0x000B, 2), (0x60FF, 0, 4)]
+            if disable:
+                commands.append((0x6040, 0x0000, 2))
+            for index, value, size in commands:
                 try:
                     self._write(motor, index, value, size)
                 except Exception as exc:
@@ -383,7 +459,7 @@ class CANOpenNetwork(Node):
         if not self._closed:
             self._closed = True
             self._timer.cancel()
-            errors = self._stop_all()
+            errors = self._stop_all(disable=True)
             if errors:
                 self.get_logger().error('Shutdown stop unconfirmed: ' + '; '.join(errors))
             self._network.disconnect()

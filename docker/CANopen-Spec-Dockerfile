@@ -31,6 +31,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ros-humble-ros2-controllers \
         ros-humble-rviz2 \
         ros-humble-xacro \
+        ros-humble-rqt \
+        ros-humble-rqt-common-plugins \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --gid "${USER_GID}" "${USERNAME}" \

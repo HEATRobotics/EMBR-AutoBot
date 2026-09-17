@@ -15,7 +15,7 @@ setup(
         ),
         ("share/" + package_name, ["package.xml", "IBUS_SETUP.md"]),
     ],
-    install_requires=["setuptools"],
+    install_requires=["setuptools", "canopen>=2.3,<3"],
     zip_safe=True,
     maintainer="Maison Gulyas",
     maintainer_email="maison.personal03@gmail.com",
@@ -25,6 +25,7 @@ setup(
         "console_scripts": [
             "CANopen = embr.node_canopen_handler:main",
             "drivetrain = embr.node_maxon_drivetrain:main",
+            "showcase = embr.node_maxon_single_showcase:main",
             "teleoperation = embr.node_teleoperation:main",
         ],
     },

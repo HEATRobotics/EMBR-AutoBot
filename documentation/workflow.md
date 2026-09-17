@@ -100,6 +100,32 @@ This starts RViz and the joint-state GUI. In RViz:
 - `F` focuses the camera on the selected object.
 - The separate joint-state window changes the shaft angle.
 
+## Drive the simple robot in RViz
+
+After building and sourcing the physical workspace:
+
+```bash
+ros2 launch embr_description view_embr_simple.launch.py
+```
+
+In a second interactive container terminal, source ROS and start the keyboard
+publisher:
+
+```bash
+source /opt/ros/humble/setup.bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args \
+  -p speed:=0.1 -p turn:=0.5 -p repeat_rate:=10.0
+```
+
+Keep that terminal focused. Use `i`/`,` for forward/reverse, `j`/`l` to turn,
+and `k` to stop. Commands repeat until changed. This launch uses mock hardware,
+a differential-drive controller, and a joint-state broadcaster. RViz shows
+command-based motion across an `odom`-anchored grid, with white wheel stripes
+to show rotation. It does not simulate physical contact or traction.
+
+See the [physical workspace guide](../embr_phys/README.md#keyboard-movement-in-rviz-ros-2-humble)
+for host commands, animation rates, and setup-path troubleshooting.
+
 ## Editing loop
 
 Source and mesh files are edited on the host under:

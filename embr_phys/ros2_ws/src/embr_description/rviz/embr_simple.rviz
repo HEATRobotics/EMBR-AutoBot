@@ -34,7 +34,7 @@ Visualization Manager:
       Name: Grid
       Plane: XY
       Plane Cell Count: 20
-      Reference Frame: embr_simple_chasis
+      Reference Frame: odom
       Value: true
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
@@ -62,8 +62,8 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: embr_simple_chasis
-    Frame Rate: 30
+    Fixed Frame: odom
+    Frame Rate: 60
   Name: root
   Tools:
     - Class: rviz_default_plugins/Interact
@@ -96,7 +96,7 @@ Visualization Manager:
       Name: Current View
       Near Clip Distance: 0.001
       Pitch: 0.55
-      Target Frame: embr_simple_chasis
+      Target Frame: odom
       Value: Orbit (rviz)
       Yaw: 0.785
     Saved: ~

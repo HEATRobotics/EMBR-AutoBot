@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""Four ESCON2 drives in profile velocity mode, using canopen-python.
+"""One ESCON2 drive in profile velocity mode, using canopen-python.
 
-Commands are normalized motor-shaft speeds in FL, BL, FR, BR order.
+Defaults to CANopen motor ID 1 and repeats relative gearbox-output rotations.
+Position comes from Sensor 2 incremental encoder feedback (0x60E4:02);
+startup defines zero. A 1024-pulse encoder supplies 4096 counts per motor
+revolution; gear_ratio defaults to 20 motor revolutions per output revolution.
 Commission the EC-i 52 (667065) motor and motion ramps in Motion Studio first.
 """
 
@@ -10,21 +13,21 @@ import time
 
 import canopen
 import rclpy
-from embr_interfaces.msg import OperationStatus
 from rclpy.node import Node
-from rclpy.qos import QoSProfile
+from embr_interfaces.msg import OperationStatus
 from std_msgs.msg import Float32MultiArray
 
 
 class CANOpenNetwork(Node):
-    MOTOR_NAMES = ('front_left', 'back_left', 'front_right', 'back_right')
+
+    SEQUENCE = (180, 90, 180, -90, 180, 180, 90, -90, -90, -90, 180, 90)
 
     def __init__(self):
         """
         ## Def:
             Create the ROS node, validate configuration, and initialize selected ESCON2
-            drives in profile velocity mode. Drives are enabled on the first valid command.
-            Default IDs are 1: front left, 2: front right, 3: back left, 4: back right.
+            drives in profile velocity mode. The timer automatically starts the showcase.
+            The default CANopen motor ID is 1.
 
         ## Args:
             N/A
@@ -38,7 +41,7 @@ class CANOpenNetwork(Node):
             TimeoutError: A drive state transition exceeds the configured timeout.
             CANopen/transport errors: Connection or drive initialization fails.
         """
-        super().__init__('canopen_handler')
+        super().__init__('maxon_single_showcase')
         
         self.declare_parameter('interface', 'socketcan')
         self.declare_parameter('channel', 'can0')
@@ -49,13 +52,13 @@ class CANOpenNetwork(Node):
         self.declare_parameter('state_timeout', 2.0)
         self.declare_parameter('max_speed_rpm', 6000.0)
         self.declare_parameter('eds_path', '')
-        self.declare_parameter('front_left_motor_id', 1)
-        self.declare_parameter('front_right_motor_id', 2)
-        self.declare_parameter('back_left_motor_id', 3)
-        self.declare_parameter('back_right_motor_id', 4)
-
-        for name in self.MOTOR_NAMES:
-            self.declare_parameter(name + '_direction', 1)
+        self.declare_parameter('showcase_motor', 1)
+        self.declare_parameter('showcase_speed_rpm', 6000.0)
+        self.declare_parameter('showcase_pause', 0.5)
+        self.declare_parameter('angle_tolerance', 1.0)
+        self.declare_parameter('move_timeout', 600.0)
+        self.declare_parameter('gear_ratio', 21.0)
+        self.declare_parameter('encoder_counts_per_rev', 4096.0)
 
         self._network = canopen.Network()
         self._motors = []
@@ -70,22 +73,23 @@ class CANOpenNetwork(Node):
             sdo_timeout = self._positive_parameter('sdo_timeout')
             self._max_rpm = self._positive_parameter('max_speed_rpm')
 
+            self._showcase_rpm = self._positive_parameter('showcase_speed_rpm')
+            self._pause = self._positive_parameter('showcase_pause')
+            self._tolerance = self._positive_parameter('angle_tolerance')
+            self._move_timeout = self._positive_parameter('move_timeout')
+            self._counts_per_rev = self._positive_parameter('encoder_counts_per_rev')
+            self._gear_ratio = self._positive_parameter('gear_ratio')
+            if not 1 <= self._showcase_rpm <= self._max_rpm:
+                raise ValueError('showcase_speed_rpm must be between 1 and max_speed_rpm')
+            if period >= self._timeout:
+                raise ValueError('publish_period must be less than command_timeout')
+
             if self._max_rpm > 6000:
                 raise ValueError('max_speed_rpm exceeds the 667065 mechanical limit (6000 rpm)')
-            ids = [self.get_parameter(n + '_motor_id').value for n in self.MOTOR_NAMES]
 
-            if len(set(ids)) != 4 or any(not 1 <= i <= 127 for i in ids):
-                raise ValueError('Four unique CANopen node IDs in [1, 127] are required')
+            if not 1 <= self.get_parameter('showcase_motor').value <= 127:
+                raise ValueError('ID must be in range [1, 127]')
             
-            self.declare_parameter('enabled_motor_ids', ids)
-            self._motor_slots = self._selected_slots(
-                ids, self.get_parameter('enabled_motor_ids').value)
-            self._directions = [self.get_parameter(n + '_direction').value
-                                for n in self.MOTOR_NAMES]
-            
-            if any(d not in (-1, 1) for d in self._directions):
-                raise ValueError('Motor directions must be -1 or 1, Un-nomralized inputs recieved')
-
             interface = self.get_parameter('interface').value
             channel = self.get_parameter('channel').value
             if interface in ('kvaser', 'ixxat', 'vector'):
@@ -94,69 +98,130 @@ class CANOpenNetwork(Node):
                                   bitrate=int(self._positive_parameter('bitrate')))
             
             eds = self.get_parameter('eds_path').value or None
-            for slot in self._motor_slots:
-                node_id = ids[slot]
-                motor = self._network.add_node(node_id, eds)
-                motor.sdo.RESPONSE_TIMEOUT = sdo_timeout
-                motor.sdo.MAX_RETRIES = 1
-                self._motors.append(motor)
+            node_id = self.get_parameter('showcase_motor').value
+            self._motor = self._network.add_node(node_id, eds)
+            self._motors.append(self._motor)
+            self._motor.sdo.RESPONSE_TIMEOUT = sdo_timeout
+            self._motor.sdo.MAX_RETRIES = 1
                 
-            # Prepare every drive before enabling any drive on a fresh command.
-            for motor in self._motors:
-                self._write(motor, 0x6040, 0, 2)
-                self._wait_state(motor, 0x40)
-                self._write(motor, 0x60FF, 0, 4, signed=True)
-                unit = self._read(motor, 0x60A9)
-                if unit != 0x00B44700:
-                    raise ValueError(f'Node {motor.id}: configure velocity units as rpm (0x60A9)')
-                max_motor_rpm = self._read(motor, 0x6080)
-                max_profile_rpm = self._read(motor, 0x607F)
-                if self._max_rpm > min(max_motor_rpm, max_profile_rpm):
-                    raise ValueError(
-                        f'Node {motor.id}: requested max_speed_rpm={self._max_rpm:g} '
-                        f'exceeds drive limits: 0x6080={max_motor_rpm} rpm, '
-                        f'0x607F={max_profile_rpm} rpm. Set max_speed_rpm at or below '
-                        f'{min(max_motor_rpm, max_profile_rpm, 6000)} rpm; '
-                        'verify the commissioned drive settings in Motion Studio.')
-                self._write(motor, 0x6060, 3, 1, signed=True)
-                if self._read(motor, 0x6061) != 3:
-                    raise RuntimeError(f'Node {motor.id}: profile velocity mode not selected')
-                motor.nmt.state = 'OPERATIONAL'
-            self._motor_subscriber = self.create_subscription(
-                Float32MultiArray, 'motor_velocity_levels', self.motor_velocity_callback,
-                QoSProfile(depth=1))
-            self._timer = self.create_timer(period, self._publish_frame)
+            # Prepare drive before enabling any drive on a fresh command.
+            
+            self._write(self._motor, 0x6040, 0, 2)
+            self._wait_state(self._motor, 0x40)
+            self._write(self._motor, 0x60FF, 0, 4, signed=True)
+            unit = self._read(self._motor, 0x60A9)
+            if unit != 0x00B44700:
+                raise ValueError(f'Node {self._motor.id}: configure velocity units as rpm (0x60A9)')
+            max_motor_rpm = self._read(self._motor, 0x6080)
+            max_profile_rpm = self._read(self._motor, 0x607F)
+            if self._max_rpm > min(max_motor_rpm, max_profile_rpm):
+                raise ValueError(
+                    f'Node {self._motor.id}: requested max_speed_rpm={self._max_rpm:g} '
+                    f'exceeds drive limits: 0x6080={max_motor_rpm} rpm, '
+                    f'0x607F={max_profile_rpm} rpm. Set max_speed_rpm at or below '
+                    f'{min(max_motor_rpm, max_profile_rpm, 6000)} rpm; '
+                    'verify the commissioned drive settings in Motion Studio.')
+            self._write(self._motor, 0x6060, 3, 1, signed=True)
+            if self._read(self._motor, 0x6061) != 3:
+                raise RuntimeError(f'Node {self._motor.id}: profile velocity mode not selected')
+            self._initialize_encoder()
+            self._motor.nmt.state = 'OPERATIONAL'
+
+            self._angle = 0.0
+            self._target_angle = 0.0
+            self._sequence_index = -1  # Center before the first move and each repeat.
+            self._settled_since = None
+            self._move_started = time.monotonic()
+            self._timer = self.create_timer(period, self._run_sequence)
             self.get_logger().info(
-                f'ESCON2 node IDs {[m.id for m in self._motors]} ready; '
-                'waiting for motor levels')
+                f'Repeating relative output rotations with {self._gear_ratio:g}:1 gearing; '
+                'startup is encoder zero. '
+                'Sensor 2 position: 0x60E4:02; Ctrl+C disables the drive.')
         except (Exception, KeyboardInterrupt):
             self._stop_all(disable=True)
             self._network.disconnect()
             super().destroy_node()
             raise
 
-    @staticmethod
-    def _selected_slots(ids, enabled_ids):
+    def _initialize_encoder(self):
+        """Validate commissioned S2 settings and capture startup before enabling.
+
+        ESCON2 Firmware Specification 2026-02: sections 6.2.44.1,
+        6.2.47.1, 6.2.127, and 6.2.134.2. Do not rewrite commissioning.
         """
-        ## Def:
-            Select command-array positions for enabled node IDs, preserving the
-            front-left, back-left, front-right, back-right order.
+        sensors = self._read(self._motor, 0x3000, subindex=1)
+        if (sensors >> 8) & 0xFF != 1:
+            raise ValueError('Configure Sensor 2 as digital incremental encoder (0x3000:01)')
+        pulses = self._read(self._motor, 0x3010, subindex=1)
+        if not 16 <= pulses <= 2500000 or pulses * 4 != self._counts_per_rev:
+            raise ValueError(
+                f'Sensor 2 has {pulses} pulses/rev (0x3010:01); '
+                f'encoder_counts_per_rev must match four times this value '
+                f'(configured {self._counts_per_rev:g})')
+        if self._read(self._motor, 0x60A8) != 0x00B50000:
+            raise ValueError('Configure position units as increments (0x60A8)')
+        # Unsupported firmware/objects must fail before motion; no velocity fallback.
+        self._previous_counts = self._read_signed(self._motor, 0x60E4, subindex=2)
+        self._relative_counts = 0
 
-        ## Args:
-            `ids`: Configured node IDs in command-array order.
-            `enabled_ids`: Nonempty collection of unique configured node IDs to use.
+    def _update_encoder_angle(self):
+        """Unwrap signed 32-bit S2 counts relative to the startup sample."""
+        counts = self._read_signed(self._motor, 0x60E4, subindex=2)
+        delta = (counts - self._previous_counts + (1 << 31)) % (1 << 32) - (1 << 31)
+        self._relative_counts += delta
+        self._previous_counts = counts
+        self._angle = self._relative_counts * 360.0 / (self._counts_per_rev * self._gear_ratio)
 
-        ## Returns:
-            List of zero-based command-array positions for the selected motors.
+    def _run_sequence(self):
+        """Run velocity control toward S2 encoder targets, checking speed to settle.
 
-        ## Raises:
-            ValueError: Selection is empty, contains duplicates, or includes an unknown ID.
+        Startup is a relative reference, not absolute encoder homing. Drive
+        ramps and sample timing still affect positioning and overshoot.
         """
-        if not enabled_ids or len(set(enabled_ids)) != len(enabled_ids):
-            raise ValueError('enabled_motor_ids must contain unique node IDs and not be empty')
-        if any(node_id not in ids for node_id in enabled_ids):
-            raise ValueError('enabled_motor_ids must match configured motor IDs')
-        return [slot for slot, node_id in enumerate(ids) if node_id in enabled_ids]
+        if self._fault or self._closed:
+            return
+        try:
+            self._network.check()
+            if self._motor.emcy.active:
+                raise RuntimeError('Drive emergency active')
+            if (self._last_update is not None
+                    and time.monotonic() - self._last_update > self._timeout):
+                raise TimeoutError('Showcase command timeout')
+            self._update_encoder_angle()
+            rpm = self._read_signed(self._motor, 0x606C)
+            now = time.monotonic()
+            error = self._target_angle - self._angle
+            if now - self._move_started > self._move_timeout:
+                raise TimeoutError('Showcase move did not settle before move_timeout')
+            if abs(error) <= self._tolerance:
+                command_rpm = 0.0
+                if abs(rpm) <= 1:
+                    if self._settled_since is None:
+                        self._settled_since = now
+                    if now - self._settled_since >= self._pause:
+                        self._sequence_index += 1
+                        if self._sequence_index == len(self.SEQUENCE):
+                            self._sequence_index = -1
+                            self._target_angle = 0.0
+                        else:
+                            self._target_angle = self._angle + self.SEQUENCE[self._sequence_index]
+                        self._settled_since = None
+                        self._move_started = now
+                        self.get_logger().info(
+                            f'Showcase target: {self._target_angle:.1f} output degrees (Sensor 2 encoder)')
+                else:
+                    self._settled_since = None
+            else:
+                self._settled_since = None
+                # Convert output error to motor degrees; speed limits remain motor rpm.
+                # The drive retains commissioned ramps.
+                command_rpm = math.copysign(
+                    min(self._showcase_rpm, max(1.0, abs(error) * self._gear_ratio / 12.0)), error)
+            command = Float32MultiArray()
+            command.data = [command_rpm / self._max_rpm]
+            self.motor_velocity_callback(command)
+        except Exception as exc:
+            self._fail(f'Showcase failed: {exc}; restart required')
 
     def _positive_parameter(self, name):
         """
@@ -204,7 +269,7 @@ class CANOpenNetwork(Node):
         motor.sdo.download(index, 0, int(value).to_bytes(size, 'little', signed=signed))
 
     @staticmethod
-    def _read(motor, index):
+    def _read(motor, index, subindex=0):
         """
         ## Def:
             Read object subindex 0 using a CANopen SDO upload and decode its bytes
@@ -220,7 +285,15 @@ class CANOpenNetwork(Node):
         ## Raises:
             CANopen/transport errors: The SDO read is rejected or communication fails.
         """
-        return int.from_bytes(motor.sdo.upload(index, 0), 'little')
+        return int.from_bytes(motor.sdo.upload(index, subindex), 'little')
+
+    @staticmethod
+    def _read_signed(motor, index, subindex=0):
+        """Read a signed INTEGER32 feedback object at the specified subindex."""
+        data = motor.sdo.upload(index, subindex)
+        if len(data) != 4:
+            raise ValueError(f'Expected INTEGER32 at 0x{index:04X}:{subindex:02X}')
+        return int.from_bytes(data, 'little', signed=True)
 
     def _wait_state(self, motor, expected):
         """
@@ -325,14 +398,14 @@ class CANOpenNetwork(Node):
     def motor_velocity_callback(self, msg):
         """
         ## Def:
-            Validate four normalized motor levels and send rpm targets to selected
-            drives using their original command-array positions and direction settings.
+            Validate normalized motor levels and send the first value as an rpm
+            target to the single showcase drive.
             Enable drives on the first valid command. Invalid input or communication
             failure attempts a stop and latches a fault; later commands cannot clear it.
 
         ## Args:
-            `msg`: Float32MultiArray with four finite values in [-1, 1], ordered
-                front left, back left, front right, back right (default IDs 1, 3, 2, 4).
+            `msg`: Float32MultiArray with one or four finite values in [-1, 1].
+                Only the first value controls the showcase motor.
 
         ## Returns:
             None. Publishes command acknowledgement or failure status.
@@ -344,26 +417,24 @@ class CANOpenNetwork(Node):
         if self._fault:
             self._publish_status(False, self._fault)
             return
-        if len(msg.data) != 4 or any(not math.isfinite(v) or abs(v) > 1 for v in msg.data):
-            self._fail('Expected four finite motor levels in [-1, 1]; restart required')
+        if len(msg.data) not in (1, 4) or any(not math.isfinite(v) or abs(v) > 1 for v in msg.data):
+            self._fail('Expected one or four finite motor levels in [-1, 1]; restart required')
             return
         received = time.monotonic()
         try:
             if self._last_update is None:
-                for motor in self._motors:
-                    for control, state in ((0x06, 0x21), (0x07, 0x23), (0x0F, 0x27)):
-                        self._write(motor, 0x6040, control, 2)
-                        self._wait_state(motor, state)
+                for control, state in ((0x06, 0x21), (0x07, 0x23), (0x0F, 0x27)):
+                    self._write(self._motor, 0x6040, control, 2)
+                    self._wait_state(self._motor, state)
             if time.monotonic() - received >= self._timeout:
                 raise TimeoutError('Command expired during drive enabling')
-            for motor, slot in zip(self._motors, self._motor_slots):
-                level = msg.data[slot]
-                direction = self._directions[slot]
+            for motor in self._motors:
+                level = msg.data[0]
                 if self._read(motor, 0x6041) & 0x6F != 0x27:
                     raise RuntimeError(f'Node {motor.id}: operation is not enabled')
                 if time.monotonic() - received >= self._timeout:
                     raise TimeoutError('Command expired during CAN transfer')
-                self._write(motor, 0x60FF, round(level * direction * self._max_rpm),
+                self._write(motor, 0x60FF, round(level * self._max_rpm),
                             4, signed=True)
                 # ESCON2 PVM applies the target on a subsequent controlword write
                 # (Application Notes, Profile Velocity Mode, steps D and E).

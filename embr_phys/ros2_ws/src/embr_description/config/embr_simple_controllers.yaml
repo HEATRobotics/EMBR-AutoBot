@@ -1,0 +1,38 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 50
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+diff_drive_controller:
+  ros__parameters:
+    left_wheel_names: ["front_left_maxon", "rear_left_maxon"]
+    right_wheel_names: ["front_right_maxon", "rear_right_maxon"]
+    
+    wheel_separation: 0.1175481
+    wheel_radius: 0.03
+    
+    odom_frame_id: "odom" 
+    base_frame_id: "root"
+
+    # RViz proof of concept: integrate commands without physical feedback.
+    open_loop: true
+    use_stamped_vel: false
+
+    pose_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+    twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+
+    enable_odom_tf: true
+    publish_rate: 50.0
+
+    linear.x.has_velocity_limits: true
+    linear.x.max_velocity: 1.0
+    linear.x.min_velocity: -1.0
+    
+    angular.z.has_velocity_limits: true
+    angular.z.max_velocity: 1.0
+    angular.z.min_velocity: -1.0

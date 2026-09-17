@@ -10,9 +10,9 @@ import time
 
 import canopen
 import rclpy
+from embr_interfaces.msg import OperationStatus
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
-from embr_interfaces.msg import OperationStatus
 from std_msgs.msg import Float32MultiArray
 
 

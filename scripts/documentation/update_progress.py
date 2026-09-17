@@ -1,12 +1,28 @@
 """Generate the README's calendar timeline using only the Python standard library."""
 
 from datetime import date, datetime
+from hashlib import sha256
 from pathlib import Path
+import re
 from zoneinfo import ZoneInfo
 
 START = date(2026, 9, 1)
 END = date(2027, 8, 31)
 OUTPUT = Path(__file__).resolve().parents[2] / "documentation/assets/academic-year-progress.svg"
+README = OUTPUT.parents[2] / "README.md"
+
+
+def update_image_link(readme: str, svg: str) -> str:
+    """Version the timeline URL by its content so image caches refresh."""
+    version = sha256(svg.encode("utf-8")).hexdigest()[:16]
+    updated, count = re.subn(
+        r"(!\[Academic-year timeline progress\]\(documentation/assets/academic-year-progress\.svg)(?:\?[^)]*)?\)",
+        lambda match: f"{match[1]}?v={version})",
+        readme,
+    )
+    if count != 1:
+        raise ValueError("Expected exactly one timeline image link in README.md")
+    return updated
 
 
 def render(today: date) -> str:
@@ -33,5 +49,8 @@ def render(today: date) -> str:
 
 
 if __name__ == "__main__":
+    svg = render(datetime.now(ZoneInfo("America/Vancouver")).date())
+    readme = update_image_link(README.read_text(encoding="utf-8"), svg)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(render(datetime.now(ZoneInfo("America/Vancouver")).date()), encoding="utf-8")
+    OUTPUT.write_text(svg, encoding="utf-8")
+    README.write_text(readme, encoding="utf-8")

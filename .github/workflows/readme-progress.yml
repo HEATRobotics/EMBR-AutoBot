@@ -23,7 +23,7 @@ jobs:
         run: python3 scripts/documentation/update_progress.py
       - name: Commit updated image
         run: |
-          git add documentation/assets/academic-year-progress.svg
+          git add README.md documentation/assets/academic-year-progress.svg
           if git diff --cached --quiet; then
             exit 0
           fi

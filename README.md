@@ -54,7 +54,7 @@ full motor and terrain physics remain development work.
 
 ### Road to the End of the 2026–2027 Academic Year
 
-![Academic-year timeline progress](documentation/assets/academic-year-progress.svg)
+![Academic-year timeline progress](documentation/assets/academic-year-progress.svg?v=1f1662b99c823ab9)
 
 The bar tracks **elapsed calendar time**, not completed engineering milestones.
 The window is **September 1, 2026 – August 31, 2027**, using Vancouver dates.
@@ -64,7 +64,8 @@ The bar reaches 100% on August 31, 2027.
 <summary>How the daily update works</summary>
 
 The [timeline workflow](.github/workflows/readme-progress.yml) regenerates the
-image daily and commits it only when it changes. Scheduled updates begin after
+image daily and updates its versioned README link to refresh image caches.
+It commits these files only when they change. Scheduled updates begin after
 the workflow reaches the default branch, with GitHub Actions enabled and bot
 commits permitted by repository rules. GitHub may delay scheduled runs or disable
 them after inactivity; see [GitHub’s schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).

@@ -6,6 +6,13 @@
 
 # EMBR AutoBot
 
+This repository is dedicated to the development of EMBR and it's autonomy. Our goals this year is to get
+EMBR up and running through remote control, and eventually reach a basic level of autonomy. We plan to achieve 
+this through simulations and real world testing. By the end of the year we expect to be able to not only remote control
+EMBR, but for EMBR to be able to navigate a simple space, find hotspots, and log them, on its own. 
+
+# Welcome
+
 Welcome to EMBR, HEAT Robotics’ robot software workspace. Whether you are joining
 the team, returning for another term, or exploring the project, this guide will
 help you understand what we are building and make your first contribution.

@@ -37,7 +37,7 @@ fi
 
 info "Starting ${SERVICE} container and checking Gazebo Fortress..."
 
-docker compose -f "${REPO_ROOT}/compose.yaml" run --rm --no-deps \
+docker compose -f "${REPO_ROOT}/compose.linux.yaml" run --rm --no-deps \
     --entrypoint /bin/bash \
     "$SERVICE" \
     -lc '

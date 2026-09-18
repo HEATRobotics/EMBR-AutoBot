@@ -18,7 +18,8 @@ frames, or simulate motor physics.
 ## Files
 
 ```text
-compose.yaml
+compose.linux.yaml
+compose.windows.yaml
 docker/
 ├── CANopen-Spec-Dockerfile
 └── canopen-entrypoint.sh
@@ -66,7 +67,85 @@ ros2 launch embr_description view_maxon_motor.launch.py
 RViz displays the body, shaft, and electrical tabs. The
 `joint_state_publisher_gui` window controls the continuous `shaft` joint.
 
+## Windows setup (Docker Desktop)
+
+`compose.windows.yaml` builds the same `docker/CANopen-Spec-Dockerfile` image
+as Linux. The container itself is unchanged (Docker Desktop still runs Linux
+containers under the hood); what differs is how the GUI, networking, and
+devices reach it, because those are Linux Docker Engine features without a
+Docker Desktop equivalent.
+
+### Prerequisites
+
+- Docker Desktop with the WSL2 backend enabled.
+- An X server for Windows, e.g. [VcXsrv](https://sourceforge.net/projects/vcxsrv/).
+
+### One-time X server setup
+
+1. Install and launch VcXsrv (`XLaunch`).
+2. Choose **Multiple windows**, display number `0`.
+3. Choose **Start no client**.
+4. On the **Extra settings** page, check **Disable access control**. Without
+   this, VcXsrv rejects connections from the container.
+5. Leave VcXsrv running for the duration of the session (it can be added to
+   Windows startup).
+6. Allow VcXsrv through the Windows Defender Firewall for private networks
+   when prompted the first time a container connects.
+
+### Quick start: RViz model
+
+From the repository root, in PowerShell or a WSL2 shell:
+
+```bash
+docker compose -f compose.windows.yaml build canopen-sim &&
+docker compose -f compose.windows.yaml up -d --force-recreate canopen-sim
+docker compose -f compose.windows.yaml exec canopen-sim bash
+```
+
+Inside the container, the same commands as the Linux quick start apply:
+
+```bash
+source /opt/ros/humble/setup.bash
+cd /workspace/embr_phys_ws
+colcon build --symlink-install
+source /workspace/embr_phys_ws/install/setup.bash
+cd /workspace/embr_sim_ws
+colcon build --symlink-install
+source /workspace/embr_sim_ws/install/setup.bash
+ros2 launch embr_description view_maxon_motor.launch.py
+```
+
+RViz and the joint-state GUI should open as separate windows on the Windows
+desktop, rendered through VcXsrv.
+
+### How `compose.windows.yaml` differs from `compose.linux.yaml`
+
+| Linux | Windows | Why |
+| --- | --- | --- |
+| `/tmp/.X11-unix` bind mount + `XAUTHORITY` | `DISPLAY=host.docker.internal:0.0` + `extra_hosts` | Windows has no host X11 socket to bind-mount; GUI apps connect out to an X server running on the host instead. |
+| `network_mode: host`, `ipc: host` | Default bridge network | Docker Desktop does not support Linux host networking; DDS/X11 traffic instead crosses the bridge network and `host.docker.internal`. |
+| `devices: /dev/dri` | *(omitted)* + `LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=llvmpipe` | There is no `/dev/dri` device node to pass through on Windows. RViz/Gazebo fall back to Mesa software rendering (`llvmpipe`), which is slower but does not require GPU passthrough. |
+
+### Known limitations
+
+- **SocketCAN (`vcan0`) is not available by default.** The `vcan` kernel
+  module is not built into the default Microsoft WSL2 kernel, so
+  `modprobe vcan` fails inside the container even though `cap_add:
+  NET_ADMIN` is set. A custom WSL2 kernel build with CAN drivers is required
+  for actual virtual-CAN development on Windows; until then, CANopen/ESCON
+  bus work should happen on Linux. This does not block the RViz model
+  workflow above, which does not use CAN.
+- **Cross-host ROS 2 discovery is not configured.** Without host networking,
+  DDS multicast discovery does not reach other containers or the host by
+  default. This is not required for the single-container RViz workflow.
+- **Rendering is software-only.** Expect RViz/Gazebo to be noticeably slower
+  than on native Linux with GPU passthrough.
+
 ## Runtime interfaces
+
+The table below describes `compose.linux.yaml`. See
+[How `compose.windows.yaml` differs](#how-composewindowsyaml-differs-from-composelinuxyaml)
+above for the Windows equivalents.
 
 The service uses:
 
@@ -196,3 +275,25 @@ older root-running containers:
 ```bash
 sudo chown -R "$(id -u):$(id -g)" embr_phys/ros2_ws embr_sim/ros2_ws
 ```
+
+### (Windows) RViz fails to connect to the display
+
+- Confirm VcXsrv is running and **Disable access control** was checked when
+  it was launched.
+- Confirm the Windows Defender Firewall prompt for VcXsrv was allowed on the
+  private network.
+- From inside the container, `echo $DISPLAY` should print
+  `host.docker.internal:0.0`. If it prints something else, unset a stale
+  `DISPLAY` value in the host shell before running `docker compose up`.
+
+### (Windows) RViz/Gazebo render as blank or garbled windows
+
+This is usually indirect-GLX rendering being attempted instead of the Mesa
+software renderer. Confirm `LIBGL_ALWAYS_SOFTWARE=1` and
+`GALLIUM_DRIVER=llvmpipe` are present in `docker compose -f
+compose.windows.yaml config` output for `canopen-sim`.
+
+### (Windows) `vcan0` does not appear
+
+Expected with the default WSL2 kernel; see
+[Known limitations](#known-limitations) above.

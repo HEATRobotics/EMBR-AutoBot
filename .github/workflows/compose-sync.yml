@@ -1,0 +1,47 @@
+name: compose sync
+
+on:
+  pull_request:
+    paths:
+      - "compose.*.yaml"
+      - "docker/**"
+      - "scripts/ci/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "compose.*.yaml"
+      - "docker/**"
+      - "scripts/ci/**"
+  workflow_dispatch:
+
+jobs:
+  parity:
+    name: Check compose file parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compare services declared across compose.*.yaml
+        run: ./scripts/ci/check_compose_parity.sh
+
+  smoke-test:
+    name: Build & start services (${{ matrix.compose_file }})
+    needs: parity
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compose_file:
+          - compose.linux.yaml
+          - compose.windows.yaml
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      - name: Build and smoke-start every active service
+        run: ./scripts/ci/compose_smoke_test.sh "${{ matrix.compose_file }}"

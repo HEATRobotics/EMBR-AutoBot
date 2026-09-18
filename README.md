@@ -39,43 +39,68 @@ simulation packages build on top of them.
 
 ## EMBR Goals
 
-- **Support wildfire response:** develop a robot platform that can help locate
-  residual hotspots and support responders.
-- **Build dependable motion and control:** connect robot models, ROS 2
-  interfaces, and CANopen motor integration.
-- **Validate through simulation:** develop repeatable visualization and
-  simulation workflows before integrating changes with hardware.
-- **Make the project sustainable:** keep setup instructions, design decisions,
-  and validation results accessible to the next group of contributors.
+Our work is organized around four main targets. Progress is measured by
+working capabilities and demonstrated results.
+
+![EMBR goal progress](documentation/assets/goal-progress.svg?v=af93803531558134)
+
+<details>
+<summary>Manually update goal progress</summary>
+
+Edit the four booleans in
+[`scripts/documentation/progress.json`](scripts/documentation/progress.json):
+set a goal to `true` when complete, or `false` when not complete. Each goal
+controls its own segment and contributes 25% of overall progress.
+
+From the repository root, regenerate the bar:
+
+```bash
+python3 scripts/documentation/update_progress.py
+```
+
+Commit the configuration, generated SVG, and updated README link on your branch
+and submit a pull request to protected `main`. No GitHub Action updates the bar.
+
+</details>
+
+### 1. Teleoperation
+
+Enable an operator to reliably drive and control EMBR through ROS 2.
+
+- Connect operator commands to the robot's drivetrain and capstan interfaces.
+- Demonstrate controlled driving, steering, and stopping on the physical robot.
+- Provide feedback on robot motion and state. (TBD)
+
+### 2. Simulation
+
+Build a repeatable simulation environment for testing robot behavior before
+integrating changes with hardware.
+
+- Run the robot in Gazebo with working motion, motor, and terrain physics.
+- Use consistent ROS 2 control interfaces across simulation and hardware.
+- Demonstrate teleoperation and sensor feedback in a documented simulation setup.
+
+### 3. Real World
+
+Bring the simulated workflows onto the physical robot and validate operation
+in real environments.
+
+- Integrate and verify drivetrain, sensors, and communication on hardware.
+- Test driving, sensor feedback, and operator control on representative terrain.
+- Document field results and resolve issues found during physical testing.
+
+### 4. Autonomy
+
+Enable EMBR to navigate and support residual hotspot detection with reduced
+operator input.
+
+- Integrate sensor data for localization, mapping, and obstacle detection.
+- Develop and validate navigation and hotspot detection behaviors in simulation.
+- Demonstrate autonomous tasks on hardware with an operator able to take control.
 
 **Current starting point:** the simple robot can be driven in RViz with mock
 hardware and command-based odometry. CANopen simulation contains scaffolding;
 full motor and terrain physics remain development work.
-
-### Road to the End of the 2026–2027 Academic Year
-
-![Academic-year timeline progress](documentation/assets/academic-year-progress.svg?v=1f1662b99c823ab9)
-
-The bar tracks **elapsed calendar time**, not completed engineering milestones.
-The window is **September 1, 2026 – August 31, 2027**, using Vancouver dates.
-The bar reaches 100% on August 31, 2027.
-
-<details>
-<summary>How the daily update works</summary>
-
-The [timeline workflow](.github/workflows/readme-progress.yml) regenerates the
-image daily and updates its versioned README link to refresh image caches.
-It commits these files only when they change. Scheduled updates begin after
-the workflow reaches the default branch, with GitHub Actions enabled and bot
-commits permitted by repository rules. GitHub may delay scheduled runs or disable
-them after inactivity; see [GitHub’s schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
-
-To change the window, edit `START` and `END` in
-[`scripts/documentation/update_progress.py`](scripts/documentation/update_progress.py),
-update the dates above, and run `python3 scripts/documentation/update_progress.py`.
-The workflow can also be run manually from GitHub Actions.
-
-</details>
 
 ## Getting Started
 

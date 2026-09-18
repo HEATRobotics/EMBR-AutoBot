@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="140" viewBox="0 0 720 140" role="img" aria-labelledby="title desc">
+  <title id="title">EMBR goals: 0 of 4 complete</title>
+  <desc id="desc">Teleoperation: not complete; Simulation: not complete; Real World: not complete; Autonomy: not complete. Each goal represents 25% of overall progress.</desc>
+  <rect width="720" height="140" rx="12" fill="#162330"/>
+  <g font-family="Arial, sans-serif" fill="#ffffff">
+    <text x="24" y="31" font-size="16" font-weight="bold">EMBR GOALS</text>
+    <text x="696" y="31" text-anchor="end" font-size="16">0 / 4 complete (0%)</text>
+    <rect x="24.0" y="49" width="159.0" height="18" rx="9" fill="#394b5b"/>
+    <text x="103.5" y="94" text-anchor="middle" font-size="16">Teleoperation</text>
+    <text x="103.5" y="117" text-anchor="middle" font-size="12" fill="#c4cdd5">Not complete</text>
+    <rect x="195.0" y="49" width="159.0" height="18" rx="9" fill="#394b5b"/>
+    <text x="274.5" y="94" text-anchor="middle" font-size="16">Simulation</text>
+    <text x="274.5" y="117" text-anchor="middle" font-size="12" fill="#c4cdd5">Not complete</text>
+    <rect x="366.0" y="49" width="159.0" height="18" rx="9" fill="#394b5b"/>
+    <text x="445.5" y="94" text-anchor="middle" font-size="16">Real World</text>
+    <text x="445.5" y="117" text-anchor="middle" font-size="12" fill="#c4cdd5">Not complete</text>
+    <rect x="537.0" y="49" width="159.0" height="18" rx="9" fill="#394b5b"/>
+    <text x="616.5" y="94" text-anchor="middle" font-size="16">Autonomy</text>
+    <text x="616.5" y="117" text-anchor="middle" font-size="12" fill="#c4cdd5">Not complete</text>
+  </g>
+</svg>

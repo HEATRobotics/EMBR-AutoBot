@@ -1,0 +1,6 @@
+{
+  "teleoperation": false,
+  "simulation": false,
+  "real_world": false,
+  "autonomy": false
+}

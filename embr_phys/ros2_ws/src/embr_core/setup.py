@@ -23,9 +23,11 @@ setup(
     license="Apache-2.0",
     entry_points={
         "console_scripts": [
-            "CANopen = embr.node_canopen_handler:main",
-            "drivetrain = embr.node_maxon_drivetrain:main",
-            "showcase = embr.node_maxon_single_showcase:main",
+            "dt_can = embr.node_maxon_canopen:main",
+            "dt_helper = embr.node_maxon_helper:main",
+            "dt_showcase = embr.node_maxon_single_showcase:main",
+            "cp_helper = embr.node_capstan_helper:main",
+            "cp_can = embr.node_capstan_can:main",
             "teleoperation = embr.node_teleoperation:main",
         ],
     },

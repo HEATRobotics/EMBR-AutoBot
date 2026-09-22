@@ -1,0 +1,14 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 50
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    planetary_eagle_controller:
+      type: forward_command_controller/ForwardCommandController
+
+planetary_eagle_controller:
+  ros__parameters:
+    joints: [revolute_1]
+    interface_name: velocity

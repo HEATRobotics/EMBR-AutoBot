@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<robot name="eagle_power_test_stand_assembly" xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <ros2_control name="PlanetaryEagleHardwareInterface" type="system">
+        <hardware>
+            <plugin>mock_components/GenericSystem</plugin>
+            <param name="calculate_dynamics">true</param>
+        </hardware>
+
+        <joint name="revolute_1">
+            <command_interface name="velocity" />
+            <state_interface name="position" />
+            <state_interface name="velocity" />
+        </joint>
+
+        <!-- revolute_2 connects part_1 to the main kinematic tree.  Expose its
+             state so joint_state_broadcaster gives robot_state_publisher the
+             position needed to publish the part_1 transform. -->
+        <joint name="revolute_2">
+            <state_interface name="position" />
+            <state_interface name="velocity" />
+        </joint>
+    </ros2_control>
+</robot>

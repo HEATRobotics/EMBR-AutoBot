@@ -17,7 +17,7 @@ def handler(monkeypatch):
     sys.modules['rclpy.qos'].QoSProfile = Mock()
     sys.modules['embr_interfaces.msg'].OperationStatus = SimpleNamespace
     sys.modules['std_msgs.msg'].Float32MultiArray = SimpleNamespace
-    path = Path(__file__).parents[1] / 'embr/node_canopen_handler.py'
+    path = Path(__file__).parents[1] / 'embr/node_maxon_handler.py'
     spec = importlib.util.spec_from_file_location('handler_under_test', path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

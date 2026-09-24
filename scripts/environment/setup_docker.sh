@@ -139,7 +139,14 @@ check_docker() {
     # Check Docker Server version
     # -----------------------------------------------------------
 
-    if ! version_ge "$docker_server_version_current" "$docker_version_min"; then
+    # GitHub-hosted runners ship an older Docker than we require locally and
+    # it can't be pinned, so only warn there. The API range check below still
+    # applies.
+    if version_ge "$docker_server_version_current" "$docker_version_min"; then
+        success "Docker Server version is adequate."
+    elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        warning "Docker Server $docker_server_version_current is below the required $docker_version_min; continuing because this is a CI runner."
+    else
         echo ""
         error "Docker Server version is not adequate."
         info "Minimum required Docker version: $docker_version_min"
@@ -149,8 +156,6 @@ check_docker() {
         bar
         return 1
     fi
-
-    success "Docker Server version is adequate."
 
     # -----------------------------------------------------------
     # Check Docker Server API minimum version

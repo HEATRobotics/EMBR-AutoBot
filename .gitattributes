@@ -1,0 +1,11 @@
+# Normalize line endings so a Windows checkout (core.autocrlf=true) cannot
+# silently convert files to CRLF. Shell scripts in particular are COPY'd
+# verbatim into Linux Docker images; a CRLF shebang line makes the
+# interpreter unresolvable at container start ("exec ...: no such file or
+# directory"), regardless of which compose.*.yaml built the image.
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.bash text eol=lf
+Dockerfile* text eol=lf
+*.py text eol=lf

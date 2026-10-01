@@ -29,8 +29,11 @@ CANopen container
 
 ## Container boundary
 
-The `canopen-sim` service is defined in `compose.yaml` and built from
-`docker/CANopen-Spec-Dockerfile`.
+The `canopen-sim` service is defined per-OS in `compose.linux.yaml` and
+`compose.windows.yaml`, both built from `docker/CANopen-Spec-Dockerfile`. The
+two compose files use the same image but differ in how the GUI, networking,
+and devices reach the container; see `documentation/canopen_simulation.md`
+for details.
 
 The service provides:
 

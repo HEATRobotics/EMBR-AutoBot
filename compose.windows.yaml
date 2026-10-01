@@ -1,2 +1,204 @@
-# TODO: Create compose file windows specific that is referenced from the linux version
-# For now only focus on the CANopen service, also make a new Dockerfile if needed.
+services:
+
+  # MARK: CANopen
+  # ROS 2 CANopen simulation with the physical description as an underlay.
+  #
+  # Windows notes (Docker Desktop, WSL2 backend):
+  #   - There is no host X11 socket to bind-mount. Run an X server on the
+  #     Windows host (e.g. VcXsrv) with access control disabled and this
+  #     service points GUI apps at it via DISPLAY. See
+  #     documentation/canopen_simulation.md for setup steps.
+  #   - `network_mode: host` and raw `/dev/dri` GPU device passthrough are
+  #     Linux Docker Engine features with no Docker Desktop equivalent, so
+  #     this service uses the default bridge network and Mesa software
+  #     rendering instead of a passed-through GPU.
+  #   - SocketCAN's `vcan` kernel module is not present in the default WSL2
+  #     kernel. `CAN_INTERFACE` will not come up without a custom WSL2
+  #     kernel build. `cap_add: NET_ADMIN` is kept for parity with the Linux
+  #     service and for hosts that do have `vcan` support.
+  canopen-sim:
+    build:
+      context: .
+      dockerfile: docker/CANopen-Spec-Dockerfile
+      args:
+        USERNAME: ${CONTAINER_USER:-embr}
+        USER_UID: ${LOCAL_UID:-1000}
+        USER_GID: ${LOCAL_GID:-1000}
+    image: embr-bot:canopen-sim
+    container_name: embr-bot-canopen-sim
+    hostname: embr-canopen-sim
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+
+    stdin_open: true
+    tty: true
+
+    # Allows the container to create/configure vcan0 when the host kernel
+    # supports it (see the Windows notes above).
+    cap_add:
+      - NET_ADMIN
+
+    environment:
+      - ROS_DOMAIN_ID=0
+      - EMBR_PHYS_WS=/workspace/embr_phys_ws
+      - EMBR_SIM_WS=/workspace/embr_sim_ws
+      - CAN_INTERFACE=${CAN_INTERFACE:-vcan0}
+      - DISPLAY=${DISPLAY:-host.docker.internal:0.0}
+      - QT_QPA_PLATFORM=xcb
+      - QT_X11_NO_MITSHM=1
+      # VcXsrv does not reliably support indirect GLX/DRI acceleration for
+      # OGRE (RViz) or Gazebo, so fall back to Mesa software rendering.
+      - LIBGL_ALWAYS_SOFTWARE=1
+      - GALLIUM_DRIVER=llvmpipe
+
+    volumes:
+      - ./embr_phys/ros2_ws:/workspace/embr_phys_ws:rw
+      - ./embr_sim/ros2_ws:/workspace/embr_sim_ws:rw
+
+    # Docker Desktop already resolves host.docker.internal for Windows
+    # hosts; the explicit mapping keeps this file runnable unchanged on
+    # plain Linux Docker Engine (used by CI) too.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    command: bash
+
+  # # MARK: NVIDIA O.N.S
+  # # Simulates Embr with computing constraints of the Nvidia Orin Nano Super
+  # nvidia-orin-nano-super-sim:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Dockerfile
+  #     args:
+  #       USERNAME: ${CONTAINER_USER:-embr}
+  #       USER_UID: ${LOCAL_UID:-1000}
+  #       USER_GID: ${LOCAL_GID:-1000}
+  #   image: embr-bot:orin-nano-super-sim
+  #   container_name: embr-bot-orin-nano-super
+  #   hostname: embr-orin-nano-super
+  #   user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+
+  #   # Interactive terminal
+  #   stdin_open: true
+  #   tty: true
+
+  #   # Environment variables
+  #   environment:
+  #     - ROS_DOMAIN_ID=0
+
+  #   # Mount workspace for live development (optional)
+  #   volumes:
+  #     - ./ros2_ws:/workspace/ros2_ws:rw
+
+  #   # Resource limits (simulating Nvidia Orin Nano Super)
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '6.0'
+  #         memory: 8G
+  #       reservations:
+  #         cpus: '2.0'
+  #         memory: 2G
+
+  #   # Keep container running
+  #   command: /bin/bash
+
+  # # MARK: MTS
+  # # Service for running tests specific to our MTS (Mechanical Testing Suite)
+  # mechanical-reports:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Dockerfile
+  #     args:
+  #       USERNAME: ${CONTAINER_USER:-embr}
+  #       USER_UID: ${LOCAL_UID:-1000}
+  #       USER_GID: ${LOCAL_GID:-1000}
+  #   image: embr-bot:mts-dev
+  #   container_name: embr-bot-mts
+  #   hostname: embr-mts
+  #   user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+
+  #   # Interactive Terminal
+  #   stdin_open: true
+  #   tty: true
+
+  #   # Environment Variables
+  #   environment:
+  #     - ROS_DOMAIN_ID=0
+
+  #   volumes:
+  #     - ./ros2_ws:/workspace/ros2_ws:rw
+
+  #   # Keep container running
+  #   command: ./generate_mechanical_report.sh
+  #   restart: "no"
+
+  # # MARK: Cntrl Systms
+  # # Control System Service
+  # #
+  # # Windows notes: replace network_mode/XAUTHORITY/device passthrough with
+  # # the same DISPLAY + extra_hosts approach used by canopen-sim above once
+  # # this service is implemented.
+  # control-systems-dev:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Gazebo-Dockerfile
+  #     args:
+  #       USERNAME: ${CONTAINER_USER:-embr}
+  #       USER_UID: ${LOCAL_UID:-1000}
+  #       USER_GID: ${LOCAL_GID:-1000}
+  #   image: embr-bot:control-systems-dev
+  #   container_name: embr-bot-control-systems
+  #   hostname: embr-control-systems
+  #   user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+
+  #   # Interactive Terminal
+  #   stdin_open: true
+  #   tty: true
+
+  #   # Environment Variables
+  #   environment:
+  #     - ROS_DOMAIN_ID=0
+  #     - USERNAME=${CONTAINER_USER:-embr}
+  #     - DISPLAY=${DISPLAY:-host.docker.internal:0.0}
+  #     - QT_QPA_PLATFORM=xcb
+  #     - QT_X11_NO_MITSHM=1
+  #     - LIBGL_ALWAYS_SOFTWARE=1
+  #     - GALLIUM_DRIVER=llvmpipe
+
+  #   volumes:
+  #     - ./ros2_ws:/workspace/ros2_ws:rw
+
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+
+  #   # Keep container running
+  #   command: /bin/bash
+
+  # # MARK: PPO
+  # # PPO Reinforcement Learning Service
+  # ppo-dev:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Dockerfile
+  #     args:
+  #       USERNAME: ${CONTAINER_USER:-embr}
+  #       USER_UID: ${LOCAL_UID:-1000}
+  #       USER_GID: ${LOCAL_GID:-1000}
+  #   image: embr-bot:ppo-dev
+  #   container_name: embr-bot-ppo
+  #   hostname: embr-ppo
+  #   user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+
+  #   # Interactive Terminal
+  #   stdin_open: true
+  #   tty: true
+
+  #   # Environment Variables
+  #   environment:
+  #     - ROS_DOMAIN_ID=0
+
+  #   volumes:
+  #     - ./ros2_ws:/workspace/ros2_ws:rw
+
+  #   # Keep container running
+  #   command: /bin/bash

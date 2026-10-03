@@ -1,4 +1,4 @@
-name: compose sync
+name: desktop compose sync
 
 permissions:
   contents: read
@@ -8,14 +8,22 @@ on:
     paths:
       - "compose.*.yaml"
       - "docker/**"
+      - ".github/workflows/compose-sync.yml"
       - "scripts/ci/**"
+      - "scripts/environment/setup_native_ubuntu.sh"
+      - "scripts/environment/ubuntu-packages.txt"
+      - "embr_phys/ros2_ws/src/**"
   push:
     branches:
       - main
     paths:
       - "compose.*.yaml"
       - "docker/**"
+      - ".github/workflows/compose-sync.yml"
       - "scripts/ci/**"
+      - "scripts/environment/setup_native_ubuntu.sh"
+      - "scripts/environment/ubuntu-packages.txt"
+      - "embr_phys/ros2_ws/src/**"
   workflow_dispatch:
 
 jobs:
@@ -37,8 +45,8 @@ jobs:
       fail-fast: false
       matrix:
         compose_file:
-          - compose.linux.yaml
           - compose.windows.yaml
+          - compose.macos.yaml
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

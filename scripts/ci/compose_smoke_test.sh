@@ -2,7 +2,7 @@
 # Builds and starts every active service in a compose file, confirms each
 # container reaches the running state, then tears everything down.
 #
-# This intentionally does not exercise any GUI (RViz/Gazebo) behavior - CI
+# This intentionally does not exercise any GUI (RViz) behavior - CI
 # runners have no X server. It only proves the image builds and the service
 # can be started, per the compose-sync CI requirement.
 #
@@ -15,29 +15,13 @@ cd "${REPO_ROOT}"
 
 info() { printf '[INFO] %s\n' "$1"; }
 success() { printf '[SUCCESS] %s\n' "$1"; }
-warning() { printf '[WARNING] %s\n' "$1"; }
 error() { printf '[ERROR] %s\n' "$1" >&2; }
-
-# Hosts without a GPU (most hosted CI runners, and Docker Desktop's Linux VM
-# on Windows/macOS) have no /dev/dri render node at all, so `docker compose
-# up` fails before the container even starts - this is an environment
-# limitation, not a regression in the compose file. Anything else that keeps
-# `up` from succeeding is a real failure.
-is_missing_device_error() {
-    grep -q 'error gathering device information' "$1" && grep -q '/dev/dri' "$1"
-}
 
 COMPOSE_FILE="${1:?Usage: $0 <compose-file>}"
 
 if [ ! -f "${COMPOSE_FILE}" ]; then
     error "No such compose file: ${COMPOSE_FILE}"
     exit 1
-fi
-
-# See scripts/ci/check_compose_parity.sh for why this is needed.
-if [ -z "${XAUTHORITY:-}" ]; then
-    export XAUTHORITY="/tmp/embr-compose-smoke.xauthority"
-    touch "${XAUTHORITY}"
 fi
 
 cleanup() {
@@ -67,11 +51,6 @@ for service in "${SERVICES[@]}"; do
     up_log="$(mktemp)"
     if ! docker compose -f "${COMPOSE_FILE}" up -d --force-recreate "${service}" >"${up_log}" 2>&1; then
         cat "${up_log}"
-        if is_missing_device_error "${up_log}"; then
-            warning "${service}: skipped - this host has no /dev/dri (no GPU), which this service requires. This is an environment limitation, not a code issue; verify on a host with a GPU device."
-            rm -f "${up_log}"
-            continue
-        fi
         error "${service}: failed to start."
         docker compose -f "${COMPOSE_FILE}" logs "${service}" || true
         rm -f "${up_log}"

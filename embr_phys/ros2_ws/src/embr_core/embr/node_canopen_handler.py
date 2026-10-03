@@ -1,1 +1,0 @@
-# TODO: Should handle the CANopen specific logic

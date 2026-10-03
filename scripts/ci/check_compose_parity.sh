@@ -26,15 +26,6 @@ fi
 
 info "Checking parity across: ${COMPOSE_FILES[*]}"
 
-# compose.linux.yaml binds ${XAUTHORITY} into the container; give it a
-# placeholder so `docker compose config` can resolve on hosts (and CI
-# runners) that have no X11 session, matching the convention already used
-# in scripts/environment/status_gazebo_fortress.sh.
-if [ -z "${XAUTHORITY:-}" ]; then
-    export XAUTHORITY="/tmp/embr-compose-parity.xauthority"
-    touch "${XAUTHORITY}"
-fi
-
 # ---------------------------------------------------------------
 # 1. Section (MARK tag) parity
 # ---------------------------------------------------------------

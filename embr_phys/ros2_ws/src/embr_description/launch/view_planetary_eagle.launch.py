@@ -46,7 +46,7 @@ def generate_launch_description():
                 output="screen",
             ),
             Node(
-                package="embr_core",
+                package="embr_capstan",
                 executable="cp_helper",
                 arguments=["--sim"],
                 condition=IfCondition(LaunchConfiguration("teleop")),

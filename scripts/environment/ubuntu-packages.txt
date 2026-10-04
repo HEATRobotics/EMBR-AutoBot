@@ -1,0 +1,6 @@
+# Ubuntu 22.04 host tools shared by native development and the Docker image.
+build-essential
+git
+python3-colcon-common-extensions
+python3-rosdep
+ros-humble-ament-cmake

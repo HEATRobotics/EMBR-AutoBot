@@ -1,14 +1,6 @@
 .git
 .env
-
-ros2_ws/build/
-ros2_ws/install/
-ros2_ws/log/
-embr_sim/ros2_ws/build/
-embr_sim/ros2_ws/install/
-embr_sim/ros2_ws/log/
-embr_phys/ros2_ws/build/
-embr_phys/ros2_ws/install/
-embr_phys/ros2_ws/log/
-
+**/build/
+**/install/
+**/log/
 mechanical_reports/

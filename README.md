@@ -33,10 +33,10 @@ for wildfire detection and response. EMBR stands for **Ember Mitigation Bot
 Responder** and supports the team’s work on finding residual hotspots after a
 wildfire. Learn more in [UBC’s introduction to EMBR](https://engineering.ok.ubc.ca/2024/05/29/soe-feature-learn-more-about-the-heat-robotics-team-and-their-award-winning-embr-project/).
 
-This repository brings together robot descriptions, control software, and
-simulation environments built around **ROS 2 Humble**, **RViz**, and **Gazebo
-Fortress**. Physical robot packages form the base workspace;
-simulation packages build on top of them.
+This repository brings together robot descriptions and control software built
+around **ROS 2 Humble** and **RViz** in a single workspace at
+`embr_phys/ros2_ws`. RViz demonstrations use mock hardware; Gazebo integration
+remains a development goal.
 
 **Website:** [HEAT Robotics’ UBC team profile](https://experience.apsc.ubc.ca/okanagan/student-groups/design-teams-clubs-and-associations).
 
@@ -106,8 +106,8 @@ operator input.
 - Demonstrate autonomous tasks on hardware with an operator able to take control.
 
 **Current starting point:** the simple robot can be driven in RViz with mock
-hardware and command-based odometry. CANopen simulation contains scaffolding;
-full motor and terrain physics remain development work.
+hardware and command-based odometry. Physical CANopen control lives in
+`embr_drivetrain`; full motor and terrain physics remain development work.
 
 ## Getting Started
 
@@ -123,60 +123,47 @@ working visualization, then choose a small task with a maintainer.
    cd EMBR-AutoBot
    ```
 
-3. **Choose an environment.** Use an existing ROS 2 Humble installation for the
-   host RViz walkthrough, or the Linux Docker environment below.
+3. **Choose an environment.** Use native Ubuntu 22.04 with ROS 2 Humble, or
+   the Docker Desktop environment for Windows and macOS described below.
 4. **Reach a first milestone.** Follow the
    [keyboard movement walkthrough](embr_phys/README.md#keyboard-movement-in-rviz-ros-2-humble)
    to view and drive the simple robot in RViz.
 
-### Linux Docker Environment
+### Development environment
 
-Use a Linux machine with Docker Engine, the Docker Compose plugin, and an X11
-display (or configured XWayland) for RViz. The current Compose configuration
-expects `/dev/dri`, `/tmp/.X11-unix`, a valid `DISPLAY`, and an `XAUTHORITY` file.
-The Windows Compose file is currently a placeholder.
-
-From the repository root, copy `.env.example` to `.env` if you do not already
-have one. Set `LOCAL_UID` and `LOCAL_GID` to the values from `id -u` and `id -g`.
-Ensure `XAUTHORITY` points to your session’s X11 authorization file.
+On Ubuntu 22.04, install ROS 2 Humble and follow the
+[native Ubuntu workflow](documentation/workflow.md#native-ubuntu-development).
+From the repository root, install project dependencies and build:
 
 ```bash
-# Select the Linux configuration for this terminal session.
-export COMPOSE_FILE=compose.linux.yaml
-
-docker compose build canopen-sim
-# Continue only after the build succeeds.
-docker compose up -d canopen-sim
-docker compose exec canopen-sim bash
-```
-
-Inside the container, build and source the physical workspace first:
-
-```bash
+bash scripts/environment/setup_native_ubuntu.sh
 source /opt/ros/humble/setup.bash
-cd /workspace/embr_phys_ws
+cd embr_phys/ros2_ws
 colcon build --symlink-install
 source install/setup.bash
 ros2 launch embr_description view_embr_simple.launch.py
 ```
 
-Continue with the [development workflow](documentation/workflow.md) for keyboard
-control, building the simulation overlay, and the edit/build/relaunch cycle.
-Set `COMPOSE_FILE=compose.linux.yaml` in each new host terminal when following
-that guide. Host and container builds use different paths; keep their generated
-build artifacts separate.
+Windows and macOS users should follow [Docker development](documentation/docker/development.md)
+for Docker Desktop and X11 setup. Use `compose.windows.yaml` on Windows or
+`compose.macos.yaml` on macOS; both provide the `development` service.
+The Docker guide describes the limitations of RViz through XQuartz on macOS.
+
+Continue with the [physical workspace walkthrough](embr_phys/README.md#keyboard-movement-in-rviz-ros-2-humble)
+to drive the simple model with the keyboard. Keep host and container build
+artifacts separate when switching environments.
 
 ## Find Your Way Around
 
 | Location | Purpose |
 | --- | --- |
-| [`embr_phys/`](embr_phys/README.md) | Physical workspace: robot descriptions, core packages, and interfaces |
-| [`embr_sim/`](embr_sim/README.md) | Simulation workspace: Gazebo and CANopen packages |
+| [`embr_phys/`](embr_phys/README.md) | ROS workspace: robot descriptions, subsystem packages, and interfaces |
 | [`documentation/workflow.md`](documentation/workflow.md) | Everyday build, visualization, and development steps |
-| [`documentation/architecture.md`](documentation/architecture.md) | Workspace boundaries and simulation architecture |
+| [`documentation/architecture.md`](documentation/architecture.md) | ROS packages and development architecture |
 | [`docker/`](docker/) | Container images and entrypoint configuration |
-| [`scripts/`](scripts/) | Environment checks, simulation helpers, and documentation automation |
-| [`compose.linux.yaml`](compose.linux.yaml) | Linux development service configuration |
+| [`scripts/`](scripts/) | Environment setup, CI checks, and documentation automation |
+| [`compose.windows.yaml`](compose.windows.yaml) | Windows Docker development configuration |
+| [`compose.macos.yaml`](compose.macos.yaml) | macOS Docker development configuration |
 
 ## Contributing
 

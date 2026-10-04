@@ -3,9 +3,10 @@
 This directory contains ROS 2 packages that describe or operate the physical
 robot without depending on a simulator.
 
-Build `ros2_ws` as the base workspace for both real-robot and simulation
-environments. Simulation-specific packages in `../embr_sim/ros2_ws` consume it
-as an underlay.
+Build `ros2_ws` for both real-robot control and RViz demonstrations with mock
+hardware. All implemented ROS packages live in this workspace. See the
+[development workflow](../documentation/workflow.md) for native Ubuntu
+dependency setup and the Windows/macOS Docker environment.
 
 ## Keyboard movement in RViz (ROS 2 Humble)
 
@@ -18,7 +19,7 @@ Build from the workspace root (`embr_phys/ros2_ws`), not from
 ```zsh
 source /opt/ros/humble/setup.zsh
 cd embr_phys/ros2_ws
-colcon build --packages-select embr_description --symlink-install
+colcon build --packages-up-to embr_description --symlink-install
 source install/setup.zsh
 ros2 launch embr_description view_embr_simple.launch.py
 ```
@@ -65,7 +66,7 @@ repository root:
 ```zsh
 source /opt/ros/humble/setup.zsh
 cd embr_phys/ros2_ws
-colcon build --packages-select embr_description --symlink-install --cmake-clean-cache
+colcon build --packages-up-to embr_description --symlink-install --cmake-clean-cache
 source install/setup.zsh
 ```
 

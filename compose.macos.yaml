@@ -1,6 +1,6 @@
 services:
   # MARK: Development
-  # Windows uses VcXsrv on the host and software rendering in Docker Desktop.
+  # macOS uses XQuartz on the host and software rendering in Docker Desktop.
   development:
     build:
       context: .
@@ -20,7 +20,7 @@ services:
       - ROS_HOME=/tmp/ros
       - EMBR_REPO=/home/${CONTAINER_USER:-embr}/EMBR-AutoBot
       - EMBR_PHYS_WS=/home/${CONTAINER_USER:-embr}/EMBR-AutoBot/embr_phys/ros2_ws
-      - DISPLAY=${DISPLAY:-host.docker.internal:0.0}
+      - DISPLAY=host.docker.internal:0.0
       - QT_QPA_PLATFORM=xcb
       - QT_X11_NO_MITSHM=1
       - LIBGL_ALWAYS_SOFTWARE=1

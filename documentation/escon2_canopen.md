@@ -1,6 +1,6 @@
 # Physical ESCON2 CANopen control
 
-`embr_core` uses [canopen-python](https://github.com/canopen-python/canopen)
+`embr_drivetrain` uses [canopen-python](https://github.com/canopen-python/canopen)
 SDO transfers for four ESCON2 drives in profile velocity mode (3).
 `motor_velocity_levels` contains four normalized values in [-1, 1], ordered
 front-left, back-left, front-right, back-right. Default node IDs in that order
@@ -27,7 +27,7 @@ workspace (including `embr_interfaces`). Example, after choosing a suitable
 motor-shaft speed limit for the installed mechanism:
 
 ```sh
-ros2 run embr_core CANopen --ros-args \
+ros2 run embr_drivetrain dt_can --ros-args \
   -p interface:=socketcan -p channel:=can0 -p bitrate:=1000000 \
   -p max_speed_rpm:=100.0
 ```
@@ -47,7 +47,7 @@ Set `enabled_motor_ids` at startup to the wired motor IDs. By default it
 includes all four configured IDs. For example, to use only node ID 2:
 
 ```sh
-ros2 run embr_core CANopen --ros-args \
+ros2 run embr_drivetrain dt_can --ros-args \
   -p interface:=socketcan -p channel:=can0 \
   -p max_speed_rpm:=100.0 -p 'enabled_motor_ids:=[2]'
 ```
@@ -90,14 +90,14 @@ Transport contract tests can run without ROS or CAN hardware:
 
 ```sh
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
-  embr_phys/ros2_ws/src/embr_core/test/test_canopen_handler.py
+  embr_phys/ros2_ws/src/embr_drivetrain/test/test_canopen_handler.py
 ```
 
 
 ## Continuous single-motor showcase
 
 ```sh
-ros2 run embr_core showcase --ros-args -p channel:=can0 \
+ros2 run embr_drivetrain dt_showcase --ros-args -p channel:=can0 \
   -p showcase_speed_rpm:=10.0
 ```
 

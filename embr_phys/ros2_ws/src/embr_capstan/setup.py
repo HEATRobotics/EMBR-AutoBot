@@ -3,6 +3,7 @@ from pathlib import Path
 from setuptools import find_packages, setup
 
 package_name = 'embr_capstan'
+package_root = Path(__file__).resolve().parent
 
 setup(
     name=package_name,
@@ -13,9 +14,9 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         *[
-            ('share/' + package_name + '/' + str(directory),
-             [str(file) for file in directory.glob('*.md')])
-            for directory in sorted(Path('docs').rglob('*'))
+            ('share/' + package_name + '/' + str(directory.relative_to(package_root)),
+             [str(file.relative_to(package_root)) for file in directory.glob('*.md')])
+            for directory in sorted((package_root / 'docs').rglob('*'))
             if directory.is_dir() and any(directory.glob('*.md'))
         ],
     ],
@@ -28,6 +29,7 @@ setup(
     entry_points={
         'console_scripts': [
             "cp_helper = embr_capstan.node_capstan_helper:main",
+            "cp_can = embr_capstan.node_capstan_can:main",
         ],
     },
 )

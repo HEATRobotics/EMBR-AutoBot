@@ -1,7 +1,7 @@
 """
 ODESC/ODrive 3.6 configuration — firmware 0.5.6
 
-Motor: Eagle Power LA8308 KV130, axis 0
+Motor: Eagle Power LA8308 KV130, AXIS 1
 Encoder: AS5047P using SPI
 Control: Torque control
 Host communication: CANSimple, with USB used for setup
@@ -53,7 +53,7 @@ AXIS0_CAN_NODE_ID = 1
 AXIS1_CAN_NODE_ID = 2
 
 CAN_HEARTBEAT_MS = 100         # 10 heartbeat messages/s per axis
-CAN_ENCODER_MS = 20            # Axis 0 telemetry: 50 messages/s
+CAN_ENCODER_MS = 20            # AXIS 1 telemetry: 50 messages/s
 
 
 # ============================================================
@@ -68,7 +68,7 @@ for node_id in (AXIS0_CAN_NODE_ID, AXIS1_CAN_NODE_ID):
         raise ValueError("CAN node IDs must be integers from 0 to 63.")
 
 if AXIS0_CAN_NODE_ID == AXIS1_CAN_NODE_ID:
-    raise ValueError("Axis 0 and axis 1 must have different CAN node IDs.")
+    raise ValueError("AXIS 1 and axis 1 must have different CAN node IDs.")
 
 
 # ============================================================
@@ -95,8 +95,8 @@ if version != (0, 5, 6):
         f"This configuration targets firmware 0.5.6; found {version}."
     )
 
-axis = odrv0.axis0
-other_axis = odrv0.axis1
+axis = odrv0.axis1
+other_axis = odrv0.axis0
 
 if any(
     a.current_state != AXIS_STATE_IDLE
@@ -123,7 +123,7 @@ for a in (axis, other_axis):
 
 
 # ============================================================
-# 5. MOTOR CONFIGURATION — AXIS 0
+# 5. MOTOR CONFIGURATION — AXIS 1
 # ============================================================
 
 axis.motor.config.pole_pairs = MOTOR_POLE_PAIRS
@@ -139,7 +139,7 @@ print(f"  Torque constant: {TORQUE_CONSTANT:.4f} Nm/A")
 
 
 # ============================================================
-# 6. SPI ENCODER CONFIGURATION — AXIS 0
+# 6. SPI ENCODER CONFIGURATION — AXIS 1
 # ============================================================
 
 # CAN host communication does not replace encoder SPI feedback.
@@ -157,7 +157,7 @@ print(f"  Bandwidth: {ENCODER_BANDWIDTH} rad/s")
 
 
 # ============================================================
-# 7. TORQUE CONTROL CONFIGURATION — AXIS 0
+# 7. TORQUE CONTROL CONFIGURATION — AXIS 1
 # ============================================================
 
 axis.controller.config.control_mode = CONTROL_MODE_TORQUE_CONTROL
@@ -181,13 +181,13 @@ print(f"  Velocity limit: {VELOCITY_LIMIT} motor turns/s")
 odrv0.can.config.protocol = CAN_SIMPLE_PROTOCOL
 odrv0.can.config.baud_rate = CAN_BITRATE
 
-# Axis 0: capstan motor.
+# AXIS 1: capstan motor.
 axis.config.can.node_id = AXIS0_CAN_NODE_ID
 axis.config.can.is_extended = False
 axis.config.can.heartbeat_rate_ms = CAN_HEARTBEAT_MS
 axis.config.can.encoder_rate_ms = CAN_ENCODER_MS
 
-# Axis 1: reserve a separate ID even when unused.
+# Axis 0: reserve a separate ID even when unused.
 other_axis.config.can.node_id = AXIS1_CAN_NODE_ID
 other_axis.config.can.is_extended = False
 other_axis.config.can.heartbeat_rate_ms = CAN_HEARTBEAT_MS
@@ -197,10 +197,10 @@ print("\nCAN configuration:")
 print("  Protocol: CANSimple")
 print(f"  Bitrate: {CAN_BITRATE} bit/s")
 print("  Identifier format: Standard 11-bit")
+print(f"  AXIS 1 node ID: {AXIS1_CAN_NODE_ID}")
 print(f"  Axis 0 node ID: {AXIS0_CAN_NODE_ID}")
-print(f"  Axis 1 node ID: {AXIS1_CAN_NODE_ID}")
 print(f"  Heartbeat interval: {CAN_HEARTBEAT_MS} ms")
-print(f"  Axis 0 encoder telemetry interval: {CAN_ENCODER_MS} ms")
+print(f"  AXIS 1 encoder telemetry interval: {CAN_ENCODER_MS} ms")
 
 # Watchdog settings are left unchanged.
 # Your runtime controller must manage command refresh/watchdog feeding.

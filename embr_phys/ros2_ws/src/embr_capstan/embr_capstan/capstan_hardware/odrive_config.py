@@ -1,222 +1,118 @@
 """
-ODESC/ODrive 3.6 configuration — firmware 0.5.6
+STAGE 1 of 2 — minimal ODrive 3.6 (fw 0.5.6) configuration for the motor demo.
 
-Motor: Eagle Power LA8308 KV130, axis 0
-Encoder: AS5047P using SPI
-Control: Torque control
-Host communication: CANSimple, with USB used for setup
+Eagle Power LA8308 KV130 on axis 0, AS5047P on SPI (CSn -> GPIO 1),
+12 V bench supply (5 A), external 2 ohm / 50 W brake resistor.
 
-This script applies settings and saves/reboots the board.
-It does not request motor movement or calibration.
-
-Keep external CAN command senders stopped during setup.
-Existing motor-driver and encoder faults still require diagnosis.
+This script only applies settings and saves/reboots. It does NOT move the
+motor and does NOT clear errors. After the board reboots and odrivetool
+reconnects, run demo_2_move.py.
 """
 
 import odrive
 from odrive.enums import (
     AXIS_STATE_IDLE,
     ENCODER_MODE_SPI_ABS_AMS,
-    CONTROL_MODE_TORQUE_CONTROL,
-    INPUT_MODE_PASSTHROUGH,
 )
 from odrive.utils import dump_errors
 
 
-# ============================================================
-# 1. SETTINGS
-# ============================================================
+# ------------------------------------------------------------
+# Settings
+# ------------------------------------------------------------
 
-# Motor settings: confirm pole count and ratings for your motor.
-MOTOR_POLE_PAIRS = 20
-CALIBRATION_CURRENT = 5.0       # A
-MOTOR_CURRENT_LIMIT = 20.0     # A; supplied development setting
+# Power / brake resistor
+DC_BUS_OVERVOLTAGE_TRIP = 15.0    # V, conservative for a 12 V supply
+DC_MAX_POSITIVE_CURRENT = 4.0     # A, below the 5 A supply
+DC_MAX_NEGATIVE_CURRENT = -0.01   # A, bench supply cannot absorb regen
+BRAKE_RESISTANCE = 2.0            # ohm (50 W resistor; keep it mounted on metal)
+MAX_REGEN_CURRENT = 0.0           # A, send regen to the resistor
+ENABLE_BRAKE_RESISTOR = True      # takes effect after the reboot at the end
+
+# Motor
+MOTOR_POLE_PAIRS = 20             # TODO: VERIFY for the LA8308 KV130
 MOTOR_KV = 130
-TORQUE_CONSTANT = 8.27 / MOTOR_KV  # Approximate Nm/A
+TORQUE_CONSTANT = 8.27 / MOTOR_KV # approx. 0.0636 Nm/A
+CALIBRATION_CURRENT = 3.0         # A
+MOTOR_CURRENT_LIMIT = 3.0         # A, ask the team before raising
 
-# SPI encoder settings.
-# The encoder CS wire must physically connect to GPIO 1.
+# AS5047P (14-bit) over SPI
 ENCODER_CS_GPIO = 1
 ENCODER_CPR = 16384
-ENCODER_BANDWIDTH = 1000.0     # rad/s
-
-# Motor velocity limit.
-VELOCITY_LIMIT = 5.0           # turns/s = 300 motor RPM
-
-# CAN settings: match the host and every device on the bus.
-CAN_BITRATE = 500_000          # bit/s
-CAN_SIMPLE_PROTOCOL = 1       # Legacy CANSimple protocol flag
-
-# Both axes need unique IDs, including the unused axis.
-# These IDs must also be unique across the whole CAN network.
-AXIS0_CAN_NODE_ID = 1
-AXIS1_CAN_NODE_ID = 2
-
-CAN_HEARTBEAT_MS = 100         # 10 heartbeat messages/s per axis
-CAN_ENCODER_MS = 20            # Axis 0 telemetry: 50 messages/s
+ENCODER_BANDWIDTH = 1000.0        # rad/s
 
 
-# ============================================================
-# 2. VALIDATE CAN SETTINGS
-# ============================================================
+# ------------------------------------------------------------
+# Connect and check
+# ------------------------------------------------------------
 
-if CAN_BITRATE not in (125_000, 250_000, 500_000, 1_000_000):
-    raise ValueError("Unsupported CAN bitrate.")
-
-for node_id in (AXIS0_CAN_NODE_ID, AXIS1_CAN_NODE_ID):
-    if not isinstance(node_id, int) or not 0 <= node_id <= 63:
-        raise ValueError("CAN node IDs must be integers from 0 to 63.")
-
-if AXIS0_CAN_NODE_ID == AXIS1_CAN_NODE_ID:
-    raise ValueError("Axis 0 and axis 1 must have different CAN node IDs.")
-
-
-# ============================================================
-# 3. CONNECT
-# ============================================================
-
-print("Connecting to ODrive...")
-
-# Reuse the board connected as dev0 inside odrivetool.
-# When run as a standalone Python script, discover it over USB.
-odrv0 = globals().get("dev0")
-
-if odrv0 is None:
-    odrv0 = odrive.find_any(timeout=15)
+odrv0 = globals().get("dev0") or odrive.find_any(timeout=15)
 
 version = (
     odrv0.fw_version_major,
     odrv0.fw_version_minor,
     odrv0.fw_version_revision,
 )
-
 if version != (0, 5, 6):
-    raise RuntimeError(
-        f"This configuration targets firmware 0.5.6; found {version}."
-    )
+    raise RuntimeError(f"This script targets firmware 0.5.6; found {version}.")
 
 axis = odrv0.axis0
 other_axis = odrv0.axis1
 
-if any(
-    a.current_state != AXIS_STATE_IDLE
-    for a in (axis, other_axis)
-):
+if any(a.current_state != AXIS_STATE_IDLE for a in (axis, other_axis)):
     raise RuntimeError("Both axes must be IDLE before configuration.")
 
-print(f"Connected. Supply voltage: {odrv0.vbus_voltage:.2f} V")
-print("Existing errors:")
+vbus = odrv0.vbus_voltage
+print(f"Supply voltage: {vbus:.2f} V")
+if vbus > DC_BUS_OVERVOLTAGE_TRIP - 1.0:
+    raise RuntimeError("Bus voltage is too close to the overvoltage trip. Not saving.")
+
+print("Existing errors (not cleared):")
 dump_errors(odrv0)
 
 
-# ============================================================
-# 4. DISABLE AUTOMATIC STARTUP MOVEMENT
-# ============================================================
+# ------------------------------------------------------------
+# Apply settings
+# ------------------------------------------------------------
 
+# Never start anything automatically on boot.
 for a in (axis, other_axis):
     a.config.startup_closed_loop_control = False
     a.config.startup_motor_calibration = False
     a.config.startup_encoder_index_search = False
     a.config.startup_encoder_offset_calibration = False
 
-    a.controller.input_torque = 0.0
+# Power and brake resistor
+odrv0.config.brake_resistance = BRAKE_RESISTANCE
+odrv0.config.max_regen_current = MAX_REGEN_CURRENT
+odrv0.config.enable_brake_resistor = ENABLE_BRAKE_RESISTOR
+odrv0.config.dc_max_positive_current = DC_MAX_POSITIVE_CURRENT
+odrv0.config.dc_max_negative_current = DC_MAX_NEGATIVE_CURRENT
+odrv0.config.dc_bus_overvoltage_trip_level = DC_BUS_OVERVOLTAGE_TRIP
 
-
-# ============================================================
-# 5. MOTOR CONFIGURATION — AXIS 0
-# ============================================================
-
+# Motor
 axis.motor.config.pole_pairs = MOTOR_POLE_PAIRS
+axis.motor.config.torque_constant = TORQUE_CONSTANT
 axis.motor.config.calibration_current = CALIBRATION_CURRENT
 axis.motor.config.current_lim = MOTOR_CURRENT_LIMIT
-axis.motor.config.torque_constant = TORQUE_CONSTANT
 
-print("\nMotor configuration:")
-print(f"  Pole pairs: {MOTOR_POLE_PAIRS}")
-print(f"  Calibration current: {CALIBRATION_CURRENT} A")
-print(f"  Current limit: {MOTOR_CURRENT_LIMIT} A")
-print(f"  Torque constant: {TORQUE_CONSTANT:.4f} Nm/A")
-
-
-# ============================================================
-# 6. SPI ENCODER CONFIGURATION — AXIS 0
-# ============================================================
-
-# CAN host communication does not replace encoder SPI feedback.
+# Encoder
 axis.encoder.config.mode = ENCODER_MODE_SPI_ABS_AMS
 axis.encoder.config.abs_spi_cs_gpio_pin = ENCODER_CS_GPIO
 axis.encoder.config.cpr = ENCODER_CPR
 axis.encoder.config.bandwidth = ENCODER_BANDWIDTH
 
-print("\nEncoder configuration:")
-print("  Encoder: AS5047P")
-print("  Interface: SPI")
-print(f"  CS GPIO: {ENCODER_CS_GPIO}")
-print(f"  CPR: {ENCODER_CPR}")
-print(f"  Bandwidth: {ENCODER_BANDWIDTH} rad/s")
+print("\nApplied: brake resistor, DC limits, motor, SPI encoder.")
 
 
-# ============================================================
-# 7. TORQUE CONTROL CONFIGURATION — AXIS 0
-# ============================================================
+# ------------------------------------------------------------
+# Save
+# ------------------------------------------------------------
 
-axis.controller.config.control_mode = CONTROL_MODE_TORQUE_CONTROL
-axis.controller.config.input_mode = INPUT_MODE_PASSTHROUGH
-
-axis.controller.config.vel_limit = VELOCITY_LIMIT
-axis.controller.config.enable_torque_mode_vel_limit = True
-
-print("\nController configuration:")
-print("  Control mode: Torque control")
-print("  Input mode: Passthrough")
-print(f"  Velocity limit: {VELOCITY_LIMIT} motor turns/s")
-
-
-# ============================================================
-# 8. CAN COMMUNICATION CONFIGURATION
-# ============================================================
-
-# Board-wide CAN settings.
-# CANSimple is a different protocol from CANopen.
-odrv0.can.config.protocol = CAN_SIMPLE_PROTOCOL
-odrv0.can.config.baud_rate = CAN_BITRATE
-
-# Axis 0: capstan motor.
-axis.config.can.node_id = AXIS0_CAN_NODE_ID
-axis.config.can.is_extended = False
-axis.config.can.heartbeat_rate_ms = CAN_HEARTBEAT_MS
-axis.config.can.encoder_rate_ms = CAN_ENCODER_MS
-
-# Axis 1: reserve a separate ID even when unused.
-other_axis.config.can.node_id = AXIS1_CAN_NODE_ID
-other_axis.config.can.is_extended = False
-other_axis.config.can.heartbeat_rate_ms = CAN_HEARTBEAT_MS
-other_axis.config.can.encoder_rate_ms = 0
-
-print("\nCAN configuration:")
-print("  Protocol: CANSimple")
-print(f"  Bitrate: {CAN_BITRATE} bit/s")
-print("  Identifier format: Standard 11-bit")
-print(f"  Axis 0 node ID: {AXIS0_CAN_NODE_ID}")
-print(f"  Axis 1 node ID: {AXIS1_CAN_NODE_ID}")
-print(f"  Heartbeat interval: {CAN_HEARTBEAT_MS} ms")
-print(f"  Axis 0 encoder telemetry interval: {CAN_ENCODER_MS} ms")
-
-# Watchdog settings are left unchanged.
-# Your runtime controller must manage command refresh/watchdog feeding.
-# Transmitting heartbeat messages does not feed the watchdog.
-
-
-# ============================================================
-# 9. DIAGNOSTICS AND SAVE
-# ============================================================
-
-# Preserve errors for diagnosis rather than hiding them.
-print("\nErrors before saving:")
-dump_errors(odrv0)
-
-print("\nSaving configuration...")
-print("The board will reboot; USB may disconnect and reconnect.")
-print("Calibration and motor tests must wait until faults are resolved.")
+print("Saving. The ODrive will reboot and USB will disconnect.")
+print("When odrivetool reconnects, check:")
+print("  dev0.config.enable_brake_resistor  -> True")
+print("  dev0.config.dc_bus_overvoltage_trip_level -> 15.0")
+print("Then run demo_2_move.py.")
 
 odrv0.save_configuration()

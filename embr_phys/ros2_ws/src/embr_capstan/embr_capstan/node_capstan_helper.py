@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Route normalized teleoperation commands to a capstan motor or RViz."""
+"""Map normalized teleoperation to motor torque or simulation velocity."""
 
 import math
 import sys
@@ -18,23 +18,25 @@ class CapstanTeleopControlSystem(Node):
         super().__init__("capstan_teleop_control_system")
         self.declare_parameter("simulation", simulation)
         self.declare_parameter("max_velocity", 10.0)
+        self.declare_parameter("max_torque", 0.1)  # Motor torque in Nm.
         self.declare_parameter("command_timeout", 0.5)
         self.declare_parameter("publish_period", 0.05)
 
         self._simulation = bool(self.get_parameter("simulation").value)
         self._max_velocity = self._positive_parameter("max_velocity")
+        self._max_torque = self._positive_parameter("max_torque")
         self._timeout = self._positive_parameter("command_timeout")
         period = self._positive_parameter("publish_period")
         if period >= self._timeout:
             raise ValueError("publish_period must be less than command_timeout")
 
-        self._velocity = 0.0
+        self._command_level = 0.0
         self._last_command = None
         message_type = Float64MultiArray if self._simulation else Float32
         topic = (
             "planetary_eagle_controller/commands"
             if self._simulation
-            else "capstan_velocity_level"
+            else "capstan_torque"
         )
         self._publisher = self.create_publisher(message_type, topic, 10)
         self._subscriber = self.create_subscription(
@@ -55,10 +57,10 @@ class CapstanTeleopControlSystem(Node):
         # A single test-stand axis uses the forward channel. Turn is intentionally
         # ignored so this node can share the same TeleCmd source as the drivetrain.
         if math.isfinite(message.velocity):
-            self._velocity = max(-1.0, min(1.0, message.velocity))
+            self._command_level = max(-1.0, min(1.0, message.velocity))
         else:
             self.get_logger().warn("Invalid tele_cmd: stopping capstan")
-            self._velocity = 0.0
+            self._command_level = 0.0
         self._last_command = time.monotonic()
         self._publish_command()
 
@@ -67,14 +69,16 @@ class CapstanTeleopControlSystem(Node):
             self._last_command is None
             or time.monotonic() - self._last_command > self._timeout
         ):
-            self._velocity = 0.0
+            self._command_level = 0.0
 
         if self._simulation:
             command = Float64MultiArray()
-            command.data = [self._velocity * self._max_velocity]
+            command.data = [self._command_level * self._max_velocity]
         else:
             command = Float32()
-            command.data = self._velocity
+            # The ODrive controller is configured for torque control with
+            # passthrough input; its encoder continues to provide feedback.
+            command.data = self._command_level * self._max_torque
         self._publisher.publish(command)
 
 

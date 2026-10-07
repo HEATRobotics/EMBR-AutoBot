@@ -55,7 +55,8 @@ class CANOpenNetwork(Node):
         self.declare_parameter('back_right_motor_id', 4)
 
         for name in self.MOTOR_NAMES:
-            self.declare_parameter(name + '_direction', 1)
+            # Mirrored right-side mounting requires opposite rotation for forward travel.
+            self.declare_parameter(name + '_direction', -1 if name.endswith('_right') else 1)
 
         self._network = canopen.Network()
         self._motors = []

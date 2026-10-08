@@ -21,7 +21,7 @@ from odrive.utils import dump_errors
 # Settings
 # ------------------------------------------------------------
 
-BRAKE_RESISTANCE = 2.0            # ohm (50 W resistor; keep it mounted on metal)
+BRAKE_RESISTANCE = 8.0            # ohm (50 W resistor; keep it mounted on metal)
 MAX_REGEN_CURRENT = 0.0           # A, send regen to the resistor
 ENABLE_BRAKE_RESISTOR = True      # takes effect after the reboot at the end
 

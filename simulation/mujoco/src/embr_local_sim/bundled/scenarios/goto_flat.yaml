@@ -1,0 +1,19 @@
+name: goto_flat
+mode: mission
+seed: 3
+settle_s: 0.50
+duration_s: 5.0
+world:
+  kind: flat
+mission:
+  level: 2
+  goto_x: 0.28
+  goto_y: 0.0
+  arrive_m: 0.12
+  timeout_s: 6.0
+notes: >
+  Level-2 goto an operator-supplied odom target on flat ground. No GT pose.
+pass:
+  no_nan: true
+  mission_end_state: COMPLETE
+  autonomy_used_gt: false

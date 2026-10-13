@@ -7,4 +7,5 @@
 - [Robot model visualization](model-visualization.md): the implemented
   physical model and its RViz launch.
 - [Architecture](architecture.md): repository and ROS workspace structure.
+- [MuJoCo simulation](../simulation/mujoco/README.md): laptop install and the wheel-proxy baseline.
 - [Troubleshooting](troubleshooting.md): common development issues.

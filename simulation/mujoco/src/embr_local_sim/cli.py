@@ -22,9 +22,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="embr-local-sim",
         description=(
-            "EMBR MuJoCo simulation baseline. The default robot is a four-wheel "
-            "skid-steer proxy, not the full EMBR. Viser only displays this process; "
-            "it is not a standalone website."
+            "EMBR MuJoCo simulation baseline. `launch` opens the grove and the "
+            "track-roller approximation, not the full EMBR and not a belt. "
+            "Viser only displays this process; it is not a standalone website."
         ),
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -68,7 +68,7 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
         "--scene",
         default=None,
         choices=SCENES,
-        help="basic (flat proxy), forest, or optional engineering/wildfire",
+        help="launch opens grove. headless defaults to basic. Also course, forest, engineering, wildfire.",
     )
     parser.add_argument("--config", default=None, help="YAML config path. Overrides packaged defaults.")
     parser.add_argument("--seed", type=int, default=None, help="Seed for randomized scenes")
@@ -76,7 +76,7 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
         "--morphology",
         default=None,
         choices=("wheels", "articulated", "tracks"),
-        help="wheels = proxy baseline. articulated = 3-roller pods. tracks = 5-roller contact approximation, not a belt.",
+        help="launch opens tracks (5 rollers per module, not a belt). headless defaults to wheels. articulated = 3-roller pods.",
     )
 
 
@@ -97,11 +97,15 @@ def _load_config(path: str | None) -> dict[str, Any]:
 
 def _resolve_run(args: argparse.Namespace) -> tuple[RobotParams, WorldSpec, str, int]:
     cfg = _load_config(args.config)
-    scene = args.scene or str(cfg.get("scene", "basic"))
+    if getattr(args, "cmd", None) == "launch":
+        scene_default, morph_default = "grove", "tracks"
+    else:
+        scene_default, morph_default = "basic", "wheels"
+    scene = args.scene or str(cfg.get("scene", scene_default))
     if scene not in SCENES:
         raise ValueError(f"Unknown scene {scene!r}. Choose one of: {', '.join(SCENES)}.")
     seed = int(args.seed if args.seed is not None else cfg.get("seed", 1))
-    morphology = args.morphology or str(cfg.get("morphology", "wheels"))
+    morphology = args.morphology or str(cfg.get("morphology", morph_default))
     if morphology not in ("wheels", "articulated", "tracks"):
         raise ValueError("morphology must be 'wheels', 'articulated', or 'tracks'")
     overrides = dict(cfg.get("params") or {})

@@ -17,8 +17,9 @@ replace this Python process, and there is no static site to host.
 
 | Model | What it is |
 | --- | --- |
-| Default `wheels` | Four-wheel skid-steer **proxy**. Wheel radius 0.03 m comes from the simple ROS controller, not from a full-size EMBR. |
-| Optional `--morphology articulated` | Four pitch-hinge pods with three rollers each. A labeled approximation. Not tracks, not a belt, and not CAD. |
+| `tracks`, opened by `embr-local-sim launch` | Five driven rollers on each pitch module, in the grove. Trunks and shrubs stop the robot. Not a belt, not CAD, and not the full EMBR. |
+| `--morphology wheels` | Four-wheel skid-steer **proxy**. Wheel radius 0.03 m comes from the simple ROS controller. |
+| `--morphology articulated` | Four pitch-hinge pods with three rollers each. A labeled approximation. Not tracks and not a belt. |
 
 No mesh from the team CAD is included. Bodies are MuJoCo primitives.
 
@@ -43,12 +44,14 @@ python -m pip install -e '.[test]'
 embr-local-sim launch
 ```
 
+That command opens the grove and the track rollers: trunks, shrubs, and the
+robot with a motor on each roller. Open the URL the terminal prints. The
+default is [http://127.0.0.1:43147](http://127.0.0.1:43147). If that port is
+taken, the program says so; pick another with `--port 43148`.
+
 `requirements.txt` pins the runtime versions executed on this Mac.
 `requirements-dev.txt` adds the pytest pin. The ranges in `pyproject.toml`
 are what pip is allowed to resolve; the pin files are the set that was run.
-
-Open the URL the terminal prints. The default is
-[http://127.0.0.1:43147](http://127.0.0.1:43147).
 
 Leave that terminal running. Stop with **Ctrl-C**. If the terminal is
 interactive, **q** also quits.
@@ -106,28 +109,28 @@ to a yaw rate that is positive to the left, then to wheel torques.
 | **M** / mission buttons | Optional demonstration. See below. |
 | **C** or Operator STOP | Cancels the mission into FAULT. |
 
-**Basic scene** (default): flat ground, wheel proxy.
+**Basic scene:** flat ground and the four-wheel proxy. This is not what `launch` opens.
 
 ```bash
-embr-local-sim launch --scene basic --seed 1 --host 127.0.0.1 --port 43147
+embr-local-sim launch --scene basic --morphology wheels --seed 1 --host 127.0.0.1 --port 43147
 embr-local-sim launch --config src/embr_local_sim/bundled/config/basic.yaml
 ```
 
-**Forest example:** procedural logs and stones. Same proxy. Not a surveyed site.
+**Forest example:** procedural logs and stones. Not a surveyed site. With no
+`--morphology` flag this still uses the track rollers.
 
 ```bash
 embr-local-sim launch --scene forest --seed 2
+embr-local-sim launch --scene forest --morphology wheels --seed 2
 ```
 
-**Track approximation and obstacle scenes.** Default launch stays the wheel
-proxy. `--morphology tracks` is five driven rollers per pitch module. The
-dark tread does not collide. It is not a belt and not imported CAD. The
-interface label is “Articulated EMBR approximation — hardware validation
-pending.” `--scene course` is a rigid branch, log, oblique branch, one-sided
-step, ramp, cross-slope, and loose branch. `--scene grove` adds larger trunks,
-a clearing, shrubs that stop the robot, and synthetic flame markers.
-Canopy, flames, and smoke stay visual. Modeling notes:
-`docs/modeling-decisions.md`.
+**Grove and the track approximation.** `embr-local-sim launch` opens this.
+`--morphology tracks` is five driven rollers per pitch module. The dark tread
+does not collide. It is not a belt and not imported CAD. The interface label
+is “Articulated EMBR approximation — hardware validation pending.” Trunks and
+shrubs stop the robot. Canopy, flames, and smoke stay visual. `--scene course`
+is a rigid branch, log, oblique branch, one-sided step, ramp, cross-slope, and
+loose branch. Modeling notes: `docs/modeling-decisions.md`.
 
 ```bash
 embr-local-sim launch --scene course --morphology tracks --host 127.0.0.1 --port 43147
@@ -165,10 +168,10 @@ only when those torques produce contact forces. Pose writes happen on reset.
 **Contacts.** Floor, walls, ramps, logs, and stones in a scene are rigid
 MuJoCo geoms. They are not soil.
 
-**Articulation.** The default model has no track modules. The optional
-articulated morphology adds assumed pitch hinges. The probe is a **one-DOF
-hinge boom** proposed in this sandbox. It is not the capstan and not a sensor
-mast from CAD.
+**Articulation.** `launch` uses the track approximation above. `--morphology wheels`
+has no track modules. `--morphology articulated` adds assumed pitch hinges and
+three rollers per pod. The probe is a **one-DOF hinge boom** proposed in this
+sandbox. It is not the capstan and not a sensor mast from CAD.
 
 **Sensors, and what they are not**
 

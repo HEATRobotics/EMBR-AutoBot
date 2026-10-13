@@ -35,6 +35,26 @@ def test_missing_scenario_is_a_clear_error(capsys):
     assert "Scenario file not found" in err
 
 
+def test_launch_without_flags_opens_grove_tracks():
+    from embr_local_sim.cli import _resolve_run, build_parser
+
+    params, world, scene, _seed = _resolve_run(build_parser().parse_args(["launch"]))
+    assert scene == "grove"
+    assert world.kind == "grove"
+    assert params.morphology == "tracks"
+
+
+def test_headless_without_flags_stays_basic_wheels():
+    from embr_local_sim.cli import _resolve_run, build_parser
+
+    params, world, scene, _seed = _resolve_run(
+        build_parser().parse_args(["headless", "--steps", "1"])
+    )
+    assert scene == "basic"
+    assert world.kind == "flat"
+    assert params.morphology == "wheels"
+
+
 def test_help_lists_scenes(capsys):
     with pytest.raises(SystemExit) as exc:
         main(["--help"])

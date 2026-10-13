@@ -1,0 +1,27 @@
+name: wildfire
+mode: mission
+seed: 7
+settle_s: 0.55
+duration_s: 18.0
+world:
+  kind: wildfire
+mission:
+  timeout_s: 16.0
+  detect_c: 46.0
+  sample_c: 62.0
+  sample_dwell_s: 0.30
+  retreat_s: 1.4
+  search_velocity: 0.55
+  approach_velocity: 0.40
+  blocked_range: 0.11
+  blocked_hold_s: 2.6
+  complete_retreat_x: 0.22
+  flame_avoid_c: 220.0
+  level: 4
+notes: >
+  Wildfire-response scenario model: smolder inspection target plus a visual
+  flame exclusion. Smoke does not change LiDAR. Not a wildfire forecast.
+  Mission uses odom/lidar/thermal/probe, not hidden GT pose.
+pass:
+  no_nan: true
+  autonomy_used_gt: false

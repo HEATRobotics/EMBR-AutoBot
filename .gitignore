@@ -14,3 +14,9 @@ embr_phys/ros2_ws/log/
 __pycache__/
 *.py[cod]
 .pytest_cache
+*.egg-info/
+.venv/
+embr-sim-runs/
+
+# Local PR notes. Not part of the source change.
+.local/

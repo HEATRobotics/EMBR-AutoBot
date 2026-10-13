@@ -1,0 +1,17 @@
+name: lidar_dropout
+mode: mission
+seed: 8
+settle_s: 0.40
+duration_s: 3.0
+lidar_dropout: true
+world:
+  kind: forest
+mission:
+  timeout_s: 2.5
+  detect_c: 999.0
+notes: LiDAR dropout must FAULT. Deadman still owned by the actuator watchdog.
+pass:
+  no_nan: true
+  mission_end_state: FAULT
+  fault_reason_contains: lidar
+  autonomy_used_gt: false

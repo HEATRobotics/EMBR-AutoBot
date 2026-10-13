@@ -1,0 +1,14 @@
+name: engineering
+seed: 1
+settle_s: 0.60
+duration_s: 1.20
+world:
+  kind: engineering
+notes: >
+  Engineering yard: known wall at 0.50 m, 8° ramp offset in Y, 0.020 m step,
+  secured log. Rigid fixtures only. Metre marks are visual.
+commands:
+  - {t: 0.0, duration: 1.0, vx: 0.0, wz: 0.0}
+pass:
+  no_nan: true
+  stable_z_range: [0.026, 0.050]

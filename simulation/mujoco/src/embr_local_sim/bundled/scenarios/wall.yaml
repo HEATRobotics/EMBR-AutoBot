@@ -1,0 +1,17 @@
+name: wall
+seed: 1
+settle_s: 0.60
+duration_s: 3.20
+world:
+  kind: wall
+  wall_x: 0.50
+notes: >
+  A physical wall must stop the chassis. Finite wheel torque must not push
+  the body through the barrier.
+commands:
+  - {t: 0.0, duration: 3.0, vx: 0.22, wz: 0.0}
+pass:
+  no_nan: true
+  wall_blocked: true
+  min_displacement_x: 0.12
+  max_final_x: 0.44

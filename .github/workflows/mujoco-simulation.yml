@@ -1,0 +1,47 @@
+name: mujoco simulation
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - "simulation/mujoco/**"
+      - ".github/workflows/mujoco-simulation.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "simulation/mujoco/**"
+      - ".github/workflows/mujoco-simulation.yml"
+  workflow_dispatch:
+
+jobs:
+  headless:
+    name: Headless physics checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install simulator and test dependencies
+        working-directory: simulation/mujoco
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e '.[test]'
+
+      - name: Run unit tests
+        working-directory: simulation/mujoco
+        run: python -m pytest
+
+      - name: Run fixed-step physics
+        working-directory: simulation/mujoco
+        run: |
+          embr-local-sim headless --steps 200 --scene basic --seed 1
+          embr-local-sim headless --steps 80 --scene forest --seed 2
+          embr-local-sim headless --steps 80 --scene grove --morphology tracks --seed 1

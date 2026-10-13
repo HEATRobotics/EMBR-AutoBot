@@ -35,8 +35,11 @@ wildfire. Learn more in [UBC’s introduction to EMBR](https://engineering.ok.ub
 
 This repository brings together robot descriptions and control software built
 around **ROS 2 Humble** and **RViz** in a single workspace at
-`embr_phys/ros2_ws`. RViz demonstrations use mock hardware; Gazebo integration
-remains a development goal.
+`embr_phys/ros2_ws`. RViz demonstrations use mock hardware. Contact simulation
+is a separate native Python package in [`simulation/mujoco`](simulation/mujoco/README.md).
+MuJoCo is the selected simulator. The current scene is a four-wheel proxy, not
+the full robot, and it is not connected to the ROS workspace. Gazebo is not
+part of the current simulation path.
 
 **Website:** [HEAT Robotics’ UBC team profile](https://experience.apsc.ubc.ca/okanagan/student-groups/design-teams-clubs-and-associations).
 
@@ -83,9 +86,16 @@ Enable an operator to reliably drive and control EMBR through ROS 2.
 Build a repeatable simulation environment for testing robot behavior before
 integrating changes with hardware.
 
-- Run the robot in Gazebo with working motion, motor, and terrain physics.
-- Use consistent ROS 2 control interfaces across simulation and hardware.
-- Demonstrate teleoperation and sensor feedback in a documented simulation setup.
+MuJoCo is the selected direction. A first baseline is documented in
+[`simulation/mujoco`](simulation/mujoco/README.md): install it, drive the
+four-wheel proxy in the browser, and run a headless check. That baseline does
+not finish this goal. Gazebo is not the current simulation path.
+
+Still open:
+
+- A robot model with the real geometry, joints, and contact parameters.
+- The same ROS 2 command interfaces in simulation and on the hardware.
+- Teleoperation and sensor feedback that have been compared with the robot.
 
 ### 3. Real World
 
@@ -107,7 +117,8 @@ operator input.
 
 **Current starting point:** the simple robot can be driven in RViz with mock
 hardware and command-based odometry. Physical CANopen control lives in
-`embr_drivetrain`; full motor and terrain physics remain development work.
+`embr_drivetrain`. The MuJoCo package can drive a proxy with contact physics
+on a laptop; that proxy is not a completed physics model of EMBR.
 
 ## Getting Started
 
@@ -158,6 +169,7 @@ artifacts separate when switching environments.
 | Location | Purpose |
 | --- | --- |
 | [`embr_phys/`](embr_phys/README.md) | ROS workspace: robot descriptions, subsystem packages, and interfaces |
+| [`simulation/mujoco/`](simulation/mujoco/README.md) | Native MuJoCo proxy: install, drive, and headless check. ROS is not required. |
 | [`documentation/workflow.md`](documentation/workflow.md) | Everyday build, visualization, and development steps |
 | [`documentation/architecture.md`](documentation/architecture.md) | ROS packages and development architecture |
 | [`docker/`](docker/) | Container images and entrypoint configuration |

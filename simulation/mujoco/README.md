@@ -33,9 +33,12 @@ Tested here: **macOS, Python 3.12.14**. The package requires **Python 3.12 or
 3.13** because NumPy 2.5, which `pip` resolves from the version range, requires
 3.12. Python 3.13 was not run. Windows was not run.
 
-From the **repository root**:
+Clone the branch and install from the repository root:
 
 ```bash
+git clone https://github.com/Thanmay30/EMBR-AutoBot.git
+cd EMBR-AutoBot
+git checkout autonomy/mujoco-baseline
 cd simulation/mujoco
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -223,6 +226,8 @@ From `simulation/mujoco`, with the test extra installed:
 ```bash
 python -m pytest
 embr-local-sim headless --steps 200 --scene basic --seed 1
+embr-local-sim headless --steps 80 --scene forest --seed 2
+embr-local-sim headless --steps 80 --scene grove --morphology tracks --seed 1
 embr-local-sim headless --all
 ```
 

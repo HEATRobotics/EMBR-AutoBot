@@ -1,0 +1,20 @@
+name: probe_stuck
+mode: mission
+seed: 7
+settle_s: 0.45
+duration_s: 8.0
+probe_stuck: true
+world:
+  kind: forest
+  heat:
+    - {x: 0.55, y: 0.0, z: 0.02, peak_c: 170, sigma: 0.20, kind: smolder, provenance: assumed}
+mission:
+  timeout_s: 7.0
+  detect_c: 40.0
+  sample_c: 50.0
+  blocked_hold_s: 3.0
+notes: Injected stuck probe actuator. Mission must FAULT, not invent a sample.
+pass:
+  no_nan: true
+  mission_end_state: FAULT
+  autonomy_used_gt: false

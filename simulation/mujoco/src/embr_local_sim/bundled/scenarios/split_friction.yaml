@@ -1,0 +1,14 @@
+name: split_friction
+seed: 6
+settle_s: 0.50
+duration_s: 1.80
+world:
+  kind: split_friction
+  left_friction: 1.1
+  right_friction: 0.12
+notes: ASSUMED μ split. Yaw/track error vs high-μ is expected; not a soil model.
+commands:
+  - {t: 0.0, duration: 1.6, vx: 0.22, wz: 0.0}
+pass:
+  no_nan: true
+  min_final_x: 0.05

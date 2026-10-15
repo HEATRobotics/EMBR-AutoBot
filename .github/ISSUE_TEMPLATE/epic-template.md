@@ -13,7 +13,6 @@ type: EPIC
 ## Epic Details
 
 - **Epic Lead:** <Person responsible for coordination and completion>
-- **Contributors:** <Members>
 - **Projected Deadline:** <Month Day, Year>
 - **Notion Document:** <Notion Epic Link>
 

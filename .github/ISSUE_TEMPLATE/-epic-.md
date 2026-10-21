@@ -22,7 +22,6 @@ HOW TO USE THIS TEMPLATE
  
 | Field | Value |
 | --- | --- |
-| **Epic Lead** | <@name> |
 | **Notion Document** | <Link> |
  
 ## 1. Overview

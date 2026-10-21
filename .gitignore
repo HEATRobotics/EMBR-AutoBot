@@ -13,3 +13,10 @@ embr_phys/ros2_ws/log/
 # Ignore local python caching
 __pycache__/
   *.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+embr-sim-runs/
+
+# Local PR notes. Not part of the source change.
+.local/

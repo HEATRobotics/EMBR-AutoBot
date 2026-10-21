@@ -1,0 +1,1 @@
+recursive-include src/embr_local_sim/bundled *.yaml *.md

@@ -1,0 +1,39 @@
+# Asset swap manifest. Paths are relative to this file's directory.
+# Missing files → primitive geoms. Do not invent CAD dimensions.
+version: 1
+units: metre
+provenance: provisional_assumption
+cad_archive: null
+cad_archive_status: missing
+slots:
+  chassis:
+    visual: meshes/chassis.obj
+    collision: meshes/chassis_collision.obj
+    scale: 1.0
+  pod_fl:
+    visual: meshes/pod_fl.obj
+    collision: meshes/pod_fl_collision.obj
+    scale: 1.0
+  pod_fr:
+    visual: meshes/pod_fr.obj
+    collision: meshes/pod_fr_collision.obj
+    scale: 1.0
+  pod_rl:
+    visual: meshes/pod_rl.obj
+    collision: meshes/pod_rl_collision.obj
+    scale: 1.0
+  pod_rr:
+    visual: meshes/pod_rr.obj
+    collision: meshes/pod_rr_collision.obj
+    scale: 1.0
+  roller:
+    visual: meshes/roller.obj
+    collision: null
+    scale: 1.0
+  probe:
+    visual: meshes/probe.obj
+    collision: null
+    scale: 1.0
+notes: >
+  Collision should stay a simplified envelope. Do not convex-hull a track
+  gap closed. Joint names stay art_fl/fr/rl/rr and the Maxon drive names.

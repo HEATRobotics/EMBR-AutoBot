@@ -1,5 +1,5 @@
 ---
-name: TASK Template
+name: "[TASK]"
 about: Use this when creating tasks.
 title: ''
 labels: ''

@@ -1,0 +1,7 @@
+numpy==1.26.4
+mujoco==3.17.0
+gymnasium==1.4.0
+stable-baselines3==2.9.0
+wandb==0.31.0
+onnx==1.23.2
+onnxruntime==1.23.2

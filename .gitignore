@@ -13,3 +13,4 @@ embr_phys/ros2_ws/log/
 # Ignore local python caching
 __pycache__/
   *.py[cod]
+.pytest_cache

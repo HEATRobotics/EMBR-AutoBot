@@ -185,7 +185,7 @@ def save_and_reboot(device):
 
 def main():
     print("Connecting to ODrive...")
-    odrv0 = globals().get("dev0") or odrive.find_any(timeout=15)
+    odrv0 = globals().get("odrv0") or globals().get("dev0") or odrive.find_any(timeout=15)
 
     firmware = (
         odrv0.fw_version_major,
@@ -272,9 +272,9 @@ def main():
             axis.encoder.config.pre_calibrated = True
             save_and_reboot(odrv0)
             print("\nAfter odrivetool reconnects, verify the saved calibration:")
-            print(f"  dev0.axis{AXIS_INDEX}.motor.is_calibrated")
-            print(f"  dev0.axis{AXIS_INDEX}.encoder.is_ready")
-            print(f"  dev0.axis{AXIS_INDEX}.motor.config.pre_calibrated")
+            print(f"  odrv0.axis{AXIS_INDEX}.motor.is_calibrated")
+            print(f"  odrv0.axis{AXIS_INDEX}.encoder.is_ready")
+            print(f"  odrv0.axis{AXIS_INDEX}.motor.config.pre_calibrated")
         else:
             print("\nSAVE_CALIBRATION is False: calibration is NOT saved.")
 

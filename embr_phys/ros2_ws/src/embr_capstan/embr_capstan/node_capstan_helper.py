@@ -2,11 +2,13 @@
 """Route normalized teleoperation commands to a capstan motor or RViz."""
 
 import math
+import signal
 import sys
 import time
 
 import rclpy
 from embr_interfaces.msg import TeleCmd
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import Float32, Float64MultiArray
 
@@ -87,13 +89,14 @@ def main(args=None):
     try:
         node = CapstanTeleopControlSystem(simulation=simulation)
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        # launch and the terminal both deliver SIGINT; don't let the second one abort cleanup
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         if node is not None:
             node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

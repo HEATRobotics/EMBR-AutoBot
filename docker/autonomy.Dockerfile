@@ -1,18 +1,7 @@
-<<<<<<< HEAD
-# ROS 2 Humble autonomy environment for EMBR (MuJoCo, Gymnasium, SB3, W&B, ONNX, Nav2).
-FROM ros:humble-ros-base-jammy
-
-ENV DEBIAN_FRONTEND=noninteractive \
-    ROS_DISTRO=humble \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    MUJOCO_GL=osmesa
-=======
 FROM ros:jazzy-ros-base-noble
 
 ENV DEBIAN_FRONTEND=noninteractive \
     ROS_DISTRO=jazzy
->>>>>>> ab96607 (Added optional autonomy Docker environment. Added an opt-in ROS 2 Jazzy container with CPU-based RL, MuJoCo, headless rendering, Nav2, and experiment-tracking dependencies. Keep the default development container unchanged and document autonomy setup for Windows and macOS.)
 
 SHELL ["/bin/bash", "-c"]
 
@@ -22,28 +11,6 @@ ARG USER_GID=1000
 
 ENV HOME=/home/${USERNAME} \
     EMBR_REPO=/home/${USERNAME}/EMBR-AutoBot \
-<<<<<<< HEAD
-    ROS_HOME=/tmp/ros
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3-pip \
-        ros-${ROS_DISTRO}-navigation2 \
-        ros-${ROS_DISTRO}-nav2-bringup \
-        libegl1 libgl1 libglfw3 libosmesa6 \
-    && rm -rf /var/lib/apt/lists/*
-
-# CPU-only torch first (large layer, rarely changes)
-RUN pip3 install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
-
-# Everything else, pinned
-COPY docker/autonomy-requirements.txt /tmp/requirements.txt
-RUN pip3 install -r /tmp/requirements.txt \
-    && rm /tmp/requirements.txt
-
-RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
-    && useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home \
-        --shell /bin/bash "${USERNAME}" \
-=======
     EMBR_PHYS_WS=/home/${USERNAME}/EMBR-AutoBot/embr_phys/ros2_ws \
     ROS_HOME=/tmp/ros \
     MUJOCO_GL=osmesa \
@@ -94,15 +61,11 @@ RUN existing_user="$(getent passwd "${USER_UID}" | cut -d: -f1 || true)" \
         groupadd --gid "${USER_GID}" "${USERNAME}"; \
     fi \
     && usermod --gid "${USERNAME}" "${USERNAME}" \
->>>>>>> ab96607 (Added optional autonomy Docker environment. Added an opt-in ROS 2 Jazzy container with CPU-based RL, MuJoCo, headless rendering, Nav2, and experiment-tracking dependencies. Keep the default development container unchanged and document autonomy setup for Windows and macOS.)
     && mkdir -p /tmp/ros \
     && chmod 1777 /tmp/ros
 
 WORKDIR ${EMBR_REPO}
 
-<<<<<<< HEAD
-RUN printf '\n# Load ROS 2 in interactive shells.\nsource /opt/ros/${ROS_DISTRO}/setup.bash\n' >> /home/${USERNAME}/.bashrc \
-=======
 COPY --chown=${USER_UID}:${USER_GID} embr_phys/ros2_ws/src/ ${EMBR_PHYS_WS}/src/
 RUN apt-get update \
     && source /opt/ros/${ROS_DISTRO}/setup.bash \
@@ -115,15 +78,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN printf '\nsource /opt/ros/${ROS_DISTRO}/setup.bash\nif [ -f "${EMBR_PHYS_WS}/install/setup.bash" ]; then\n    source "${EMBR_PHYS_WS}/install/setup.bash"\nfi\n' >> /home/${USERNAME}/.bashrc \
->>>>>>> ab96607 (Added optional autonomy Docker environment. Added an opt-in ROS 2 Jazzy container with CPU-based RL, MuJoCo, headless rendering, Nav2, and experiment-tracking dependencies. Keep the default development container unchanged and document autonomy setup for Windows and macOS.)
     && chown ${USER_UID}:${USER_GID} /home/${USERNAME}/.bashrc
 
 USER ${USERNAME}
 CMD ["bash"]
-<<<<<<< HEAD
-
-LABEL maintainer="Anvi" \
-      description="EMBR autonomy environment" \
-      version="1.0"
-=======
->>>>>>> ab96607 (Added optional autonomy Docker environment. Added an opt-in ROS 2 Jazzy container with CPU-based RL, MuJoCo, headless rendering, Nav2, and experiment-tracking dependencies. Keep the default development container unchanged and document autonomy setup for Windows and macOS.)

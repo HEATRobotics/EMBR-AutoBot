@@ -63,9 +63,11 @@ interactive, **q** also quits.
 ## CAD rover
 
 `launch` above is the grove stand-in. The converted assembly is a different
-command. It loads `cad_visual.obj` (the Onshape STEP, tessellated) in the yard:
-trunks, a gap, shrubs, a log, and low rocks. The mesh is visual. Contact is
-the base plate and four idler cylinders. Mass and torque are assumed.
+command. It loads `cad_visual.obj` (the Onshape STEP, tessellated) in the grove,
+which is the scene this command opens. Trunks and shrubs are in the way.
+The mesh is visual. Contact is the base plate and four idler cylinders.
+Mass and torque are assumed. **W / A / S / D** drive from that grove. **Space**
+stops. Manual drive does not use the planner.
 
 ```bash
 embr-local-sim cad

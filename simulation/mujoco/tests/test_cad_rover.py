@@ -1,4 +1,4 @@
-"""The teammate session is the CAD mesh in the yard, not the grove proxy."""
+"""The teammate session is the CAD mesh in the grove. Manual drive starts there."""
 
 from embr_local_sim.cad_model import cad_mesh_path
 from embr_local_sim.cad_rover import MORPHOLOGY, SCENE, SEED, open_session
@@ -6,12 +6,12 @@ from embr_local_sim.physics import Simulator
 from embr_local_sim.types import DriveCommand
 
 
-def test_cad_command_opens_the_yard_mesh():
+def test_cad_command_opens_the_grove_mesh():
     params, world, scene, seed = open_session()
-    assert (MORPHOLOGY, SCENE, SEED) == ("cad", "yard", 1)
+    assert (MORPHOLOGY, SCENE, SEED) == ("cad", "grove", 1)
     assert params.morphology == "cad"
-    assert scene == "yard" and seed == 1
-    assert world.kind == "yard"
+    assert scene == "grove" and seed == 1
+    assert world.kind == "grove"
     mesh = cad_mesh_path()
     assert mesh.is_file() and mesh.stat().st_size > 100_000
 

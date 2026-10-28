@@ -1,15 +1,15 @@
 # Default: Software Executive and Team Lead own everything
-*                       @HEATRobotics/software-exec @HEATRobotics/team-lead
+*                                            @HEATRobotics/software-exec @HEATRobotics/team-lead
 
 # Subsystem leads
-/embr_autonomy/         @HEATRobotics/autonomy-lead @HEATRobotics/team-lead
-/embr_capstan/          @HEATRobotics/armactuation-lead @HEATRobotics/team-lead
-/embr_description/      @HEATRobotics/team-lead
-/embr_drivetrain/       @HEATRobotics/drivetrain-lead @HEATRobotics/team-lead
-/embr_interfaces/       @HEATRobotics/team-lead
-/embr_lidar/            @HEATRobotics/lidar-lead @HEATRobotics/team-lead
-/embr_teleoperation/    @HEATRobotics/teleoperation-lead @HEATRobotics/team-lead
-/embr_thermals/         @HEATRobotics/thermals-lead @HEATRobotics/team-lead
+/embr_phys/ros2_ws/src/embr_autonomy/        @HEATRobotics/autonomy-lead @HEATRobotics/team-lead
+/embr_phys/ros2_ws/src/embr_capstan/         @HEATRobotics/armactuation-lead @HEATRobotics/team-lead
+/embr_phys/ros2_ws/src/embr_description/     @HEATRobotics/team-lead
+/embr_phys/ros2_ws/src/embr_drivetrain/      @HEATRobotics/drivetrain-lead @HEATRobotics/team-lead
+/embr_phys/ros2_ws/src/embr_interfaces/      @HEATRobotics/team-lead
+/embr_phys/ros2_ws/src/embr_lidar/           @HEATRobotics/lidar-lead @HEATRobotics/team-lead
+/embr_phys/ros2_ws/src/embr_teleoperation/   @HEATRobotics/teleoperation-lead @HEATRobotics/team-lead
+/embr_phys/ros2_ws/src/embr_thermals/        @HEATRobotics/thermals-lead @HEATRobotics/team-lead
 
 # Repo process files (PR template, CODEOWNERS, workflows)
-/.github/               @HEATRobotics/software-exec @HEATRobotics/team-lead
+/.github/                                    @HEATRobotics/software-exec @HEATRobotics/team-lead

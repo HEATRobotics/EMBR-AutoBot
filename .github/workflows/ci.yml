@@ -1,0 +1,132 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ros: ${{ steps.filter.outputs.ros }}
+      compose: ${{ steps.filter.outputs.compose }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            ros:
+              - "embr_phys/ros2_ws/src/**"
+              - ".github/workflows/ci.yml"
+            compose:
+              - "compose.*.yaml"
+              - "docker/**"
+              - "scripts/ci/**"
+              - "scripts/environment/setup_native_ubuntu.sh"
+              - "scripts/environment/ubuntu-packages.txt"
+              - "embr_phys/ros2_ws/src/**"
+              - ".github/workflows/ci.yml"
+            workflows:
+              - ".github/**"
+
+  ros-test:
+    name: Build & test ROS 2 packages
+    needs: changes
+    if: needs.changes.outputs.ros == 'true'
+    runs-on: ubuntu-latest
+    container: ros:humble-ros-base-jammy@sha256:566b87e6dfc48392189a9c32e594e84060fa9948de93b04e536f39475a1f6963
+    defaults:
+      run:
+        shell: bash
+        working-directory: embr_phys/ros2_ws
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install dependencies
+        run: |
+          apt-get update
+          rosdep update --rosdistro humble
+          rosdep install --from-paths src --ignore-src -y
+      - name: Build
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --event-handlers console_direct+
+      - name: Test
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          colcon test --event-handlers console_direct+
+          colcon test-result --verbose
+
+  compose-parity:
+    name: Check compose file parity
+    needs: changes
+    if: needs.changes.outputs.compose == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: ./scripts/ci/check_compose_parity.sh
+
+  compose-smoke:
+    name: Build & start services (${{ matrix.compose_file }})
+    needs: compose-parity
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compose_file: [compose.windows.yaml, compose.macos.yaml]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: cp .env.example .env
+      - run: ./scripts/ci/compose_smoke_test.sh "${COMPOSE_FILE}"
+        env:
+          COMPOSE_FILE: ${{ matrix.compose_file }}
+
+  zizmor:
+    name: Audit workflows
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [changes, ros-test, compose-parity, compose-smoke, zizmor]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: ${RESULTS}"
+          [[ ! "${RESULTS}" =~ (failure|cancelled) ]]

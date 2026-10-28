@@ -223,8 +223,11 @@ class Simulator:
         self.enqueue(UiRequest(kind="inspection_start"))
 
     def start_mission(self, config: MissionConfig | None = None) -> None:
-        if config is not None:
-            self.mission = MissionMachine(config, planner=self.steer_planner)
+        # A planner assigned after construction has to be picked up here.
+        # start_mission() with no config is the script in the README.
+        if config is not None or self.steer_planner is not None:
+            cfg = config if config is not None else self.mission.config
+            self.mission = MissionMachine(cfg, local=self.mission.local, planner=self.steer_planner)
         self.enqueue(UiRequest(kind="mission_start"))
 
     def start_goto(self, x: float, y: float, *, level: int = 3) -> None:

@@ -82,3 +82,23 @@ def test_a_custom_planner_replaces_the_histogram():
     assert tele.velocity == 0.4
     assert tele.turn == 0.9
     assert machine.reason == "custom"
+
+
+def test_steer_planner_assigned_before_start_mission_is_used():
+    from embr_local_sim.model import RobotParams, WorldSpec
+    from embr_local_sim.physics import Simulator
+
+    class _Right:
+        name = "right"
+
+        def steer(self, ctx):
+            return TeleCmd(0.4, 0.9, ctx.wall, source="mission"), "custom"
+
+    sim = Simulator(params=RobotParams(), world=WorldSpec(kind="flat"), seed=1)
+    sim.reset()
+    sim.steer_planner = _Right()
+    sim.start_mission()
+    sim.run_for(0.3)
+    assert sim.mission.reason == "custom"
+    assert sim.mission.last_tele.velocity == 0.4
+    assert sim.mission.last_tele.turn == 0.9

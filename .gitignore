@@ -17,6 +17,3 @@ __pycache__/
 *.egg-info/
 .venv/
 embr-sim-runs/
-
-# Local PR notes. Not part of the source change.
-.local/

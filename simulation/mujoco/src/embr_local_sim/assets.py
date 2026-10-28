@@ -142,10 +142,10 @@ def cad_status() -> dict[str, Any]:
         "blocker": None
         if archive
         else (
-            "No CAD mesh is packaged with the simulator. Slots use labeled "
-            "primitive geoms. A complete assembly STEP (component placement, "
-            "units, joint axes, limits, and masses) is not in this tree. "
-            "Do not upload team CAD to third-party converters."
+            "The SolidWorks zip is not packaged. morphology=cad uses a local "
+            "Onshape STEP tessellation (cad_visual.obj) for visuals only. "
+            "The STEP is not in this tree. It has no joint entities, masses, "
+            "or actuator ratings. Do not upload team CAD to a web converter."
         ),
     }
 

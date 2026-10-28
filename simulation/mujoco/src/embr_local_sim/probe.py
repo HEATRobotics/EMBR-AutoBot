@@ -24,7 +24,12 @@ class ProbeConfig:
     deploy_timeout_s: float = 1.5
     settle_s: float = 0.12
     retract_timeout_s: float = 1.5
-    stuck: bool = False  # test injection
+    stuck: bool = False  # test injection: fault on the next tick
+    # Fault injection at the actuator, used by the retraction scenario.
+    # Off by default. When set, a stow request reaches RETRACTING and the
+    # hinge then faults instead of closing. The mission is not forced to FAULT
+    # from outside; the controller sees probe_state == FAULT.
+    retract_fault: bool = False
 
 
 class ProbeMachine:
@@ -68,6 +73,11 @@ class ProbeMachine:
         if cfg.stuck:
             self.state = "FAULT"
             self.reason = "actuator_stuck"
+            return float(angle)
+        if cfg.retract_fault and self.state == "RETRACTING":
+            self.state = "FAULT"
+            self.reason = "retract_actuator_fault"
+            self.target = float(angle)
             return float(angle)
         if self.state == "DEPLOYING":
             if abs(angle - DEPLOYED_RAD) <= ANGLE_TOL:

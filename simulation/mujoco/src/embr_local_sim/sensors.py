@@ -28,6 +28,10 @@ class SensorModel:
         self._last_time: float | None = None
         self.lidar = LidarFan(params)
         self.lidar_dropout = False
+        # When set, ranges are withheld once simulation time reaches this value.
+        # None leaves the scan alone. Reset clears the frozen stamp, not this arm.
+        self.lidar_dropout_after: float | None = None
+        self._lidar_frozen_stamp: float | None = None
         half = 0.5 * math.radians(params.thermal_fov_deg)
         n = params.thermal_n_bins
         self.thermal_angles = np.linspace(-half, half, n) if n > 1 else np.array([0.0])
@@ -40,6 +44,9 @@ class SensorModel:
         self._odom_yaw = 0.0
         self._last_enc = None
         self._last_time = None
+        self.lidar_dropout = False
+        self.lidar_dropout_after = None
+        self._lidar_frozen_stamp = None
 
     def _quantize(self, rad: float) -> float:
         ticks = self.params.encoder_ticks
@@ -91,7 +98,14 @@ class SensorModel:
                 d_left = scale * 0.5 * sum(enc[n] - self._last_enc[n] for n in LEFT_WHEELS)
                 d_right = scale * 0.5 * sum(enc[n] - self._last_enc[n] for n in RIGHT_WHEELS)
                 ds = 0.5 * (d_left + d_right)
-                dyaw = (d_right - d_left) / self.params.wheel_separation
+                # Heading uses the synthetic gyro, not the wheel difference.
+                # On this skid-steer proxy the wheels scrub, so encoder yaw runs
+                # ahead of the body and then keeps integrating after the body
+                # has stopped turning. The gyro below is the physics body rate
+                # plus the configured noise (zero unless a test sets it). It is
+                # not a hardware IMU and it is not a live pose correction:
+                # only this rate is integrated.
+                dyaw = float(gt.root_angvel_body[2]) * dt
                 yaw_mid = self._odom_yaw + 0.5 * dyaw
                 self._odom_x += ds * math.cos(yaw_mid)
                 self._odom_y += ds * math.sin(yaw_mid)
@@ -124,10 +138,20 @@ class SensorModel:
         if model is not None and data is not None:
             lidar_scan = self.lidar.scan(model, data)
         lidar_valid = True
-        if self.lidar_dropout:
+        dropout_now = self.lidar_dropout or (
+            self.lidar_dropout_after is not None and gt.sim_time >= self.lidar_dropout_after
+        )
+        if dropout_now:
+            # Withhold the scan. Do not substitute max-range, which would look free.
             lidar_valid = False
-            n = len(lidar_scan.get("ranges") or []) or self.params.lidar_n_rays
-            lidar_scan["ranges"] = [self.params.lidar_max_range] * n
+            if self._lidar_frozen_stamp is None:
+                self._lidar_frozen_stamp = float(gt.sim_time)
+            lidar_scan["ranges"] = []
+            lidar_scan["angles"] = []
+            lidar_scan["hit_x"] = []
+            lidar_scan["hit_y"] = []
+            lidar_scan["hit_z"] = []
+            lidar_scan["stamp_sim"] = self._lidar_frozen_stamp
 
         thermal_c, thermal_ang = self._thermal_bins(gt, thermal, lidar_scan)
         ambient = thermal.ambient_c if thermal is not None else 20.0

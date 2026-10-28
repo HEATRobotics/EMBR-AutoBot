@@ -20,8 +20,9 @@ replace this Python process, and there is no static site to host.
 | `tracks`, opened by `embr-local-sim launch` | Five driven rollers on each pitch module, in the grove. Trunks and shrubs stop the robot. Not a belt, not CAD, and not the full EMBR. |
 | `--morphology wheels` | Four-wheel skid-steer **proxy**. Wheel radius 0.03 m comes from the simple ROS controller. |
 | `--morphology articulated` | Four pitch-hinge pods with three rollers each. A labeled approximation. Not tracks and not a belt. |
+| `--morphology cad` | Visual mesh from the local Onshape STEP. Contact is the base plate plus four idler cylinders, not a belt. Mass and torque are assumed. Scenes are the proxy layouts stretched by plate length / 0.15 m. |
 
-No mesh from the team CAD is included. Bodies are MuJoCo primitives.
+The wheel, articulated, and track models are still MuJoCo primitives. `cad` is the only morphology that loads a mesh, and that mesh does not collide.
 
 ROS 2 is **not** required and **not** connected. The ROS workspace stays in
 `embr_phys/ros2_ws`. RViz mock hardware is a separate demo. A ROS adapter file
@@ -59,7 +60,59 @@ are what pip is allowed to resolve; the pin files are the set that was run.
 Leave that terminal running. Stop with **Ctrl-C**. If the terminal is
 interactive, **q** also quits.
 
-You can start the command from any working directory after the package is
+## CAD rover
+
+`launch` above is the grove stand-in. The converted assembly is a different
+command. It loads `cad_visual.obj` (the Onshape STEP, tessellated) in the yard:
+trunks, a gap, shrubs, a log, and low rocks. The mesh is visual. Contact is
+the base plate and four idler cylinders. Mass and torque are assumed.
+
+```bash
+embr-local-sim cad
+```
+
+Open the URL it prints. The default is [http://127.0.0.1:43147](http://127.0.0.1:43147).
+**W / A / S / D** drive. **Space** stops. In the Scene panel, **engineering**
+and **wildfire-mission** keep this CAD model and change the world. Leave
+**Model** on `cad`.
+
+The SolidWorks zip is not in the repo. Do not upload it to convert it again.
+The obj and `cad_geometry.json` already ship with this package.
+What a person actually ran, and what is still assumed, is in
+[`docs/human-claims.md`](docs/human-claims.md).
+
+## Replacing the steer planner
+
+Follow instructions calls `Simulator.steer_planner`. The default is
+`VfhPlanner` (a vector-field histogram on the lidar fan). Manual **W/A/S/D**
+does not call it. This package does not train a model. A teammate can
+drive with the keyboard, then try their own model from a script:
+
+```python
+from embr_local_sim.model import RobotParams
+from embr_local_sim.physics import Simulator
+from embr_local_sim.planners.learned import LearnedSteerPlanner
+from embr_local_sim.worlds import prepare_world
+
+class MyModel(LearnedSteerPlanner):
+    def act(self, ctx):
+        # ctx.view is lidar, thermal, probe, and wheel odom. Not ground truth.
+        # Return sticks in [-1, 1]. Positive turn is right.
+        return 0.4, 0.0
+
+world = prepare_world("forest", seed=1, morphology="wheels")
+sim = Simulator(params=RobotParams(), world=world, seed=1)
+sim.reset()
+sim.steer_planner = MyModel()
+sim.start_mission()
+sim.run_for(2.0)
+```
+
+Any object with `steer(ctx) -> (TeleCmd, reason)` can be assigned the same
+way. `None` from `steer` falls back to the small classical policy. The
+mission still decides when to sample, retreat, and stop for a blocked wall.
+
+You can start `embr-local-sim` from any working directory after the package is
 installed. Scenes are loaded from the installed package, not from the shell's
 current folder.
 
@@ -272,4 +325,4 @@ These are not done:
 2. Hardware comparison for mass, torque, and sensor values that are still assumed or unknown.
 3. A ROS 2 adapter that publishes the existing `TeleCmd` and sensor topics. Hardware execution stays in `embr_phys/`.
 4. An inspection mission checked against sensor logs, with oracle mode kept separate.
-5. A forest benchmark, and only later any learning work. This package does not train a policy.
+5. A learned steer model, trained outside this package and passed in as `Simulator.steer_planner`. The default planner is the histogram in `planners/vfh.py`. This package does not train a policy.

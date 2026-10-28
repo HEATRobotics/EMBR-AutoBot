@@ -1,0 +1,257 @@
+{
+  "units": "metre",
+  "tessellation_tol_m": 0.008,
+  "frame": {
+    "forward": "CAD +Z, the long axis of the base plate",
+    "left": "CAD -X, chosen so the smaller CAD X track is +Y. The STEP does not label left.",
+    "up": "CAD +Y, the base plate's thin axis. Lower idlers hang below the plate.",
+    "plate_center_cad_m": [
+      1.113530906848608,
+      -0.003174999961629526,
+      1.4222158864140502
+    ],
+    "roller_center_cad_y_m": 0.03267623111605644
+  },
+  "plate": {
+    "size_m": [
+      0.5080000106245314,
+      0.006349999923259052,
+      0.7061200290918375
+    ],
+    "cad_min_m": [
+      0.8595309015363423,
+      -0.006349999923259052,
+      1.0691558718681313
+    ],
+    "cad_max_m": [
+      1.3675309121608736,
+      1.4601812697640856e-31,
+      1.7752759009599688
+    ],
+    "body_center_m": [
+      0.0,
+      0.0,
+      -0.035851231077685966
+    ]
+  },
+  "idler_diameter_m": 0.17799575300434234,
+  "roller_radius_m": 0.08899787650217117,
+  "roller_radius_provenance": "half the median tessellated AABB diameter of TRACK_IDLER_WHEEL solids whose two large axes exceed 0.1 m. Linear mesher tolerance 0.008 m. Not a caliper measurement. Track-shoe thickness is not added.",
+  "wheel_separation_m": 0.8760460913181305,
+  "wheelbase_m": 1.1921862363815308,
+  "rollers": [
+    {
+      "joint": "rear_left_maxon",
+      "cad_xyz_m": [
+        0.6669601514451922,
+        0.03267623111605647,
+        0.8261228799819946
+      ],
+      "width_m": 0.05999999865889549,
+      "width_provenance": "span of tessellated idler fragments at this wheel; not a drawing width",
+      "body_xyz_m": [
+        -0.5960930064320555,
+        0.44657075540341573,
+        2.7755575615628914e-17
+      ]
+    },
+    {
+      "joint": "rear_right_maxon",
+      "cad_xyz_m": [
+        1.543006272565645,
+        0.032676231116056415,
+        0.8261228799819946
+      ],
+      "width_m": 0.05999999865889549,
+      "width_provenance": "span of tessellated idler fragments at this wheel; not a drawing width",
+      "body_xyz_m": [
+        -0.5960930064320555,
+        -0.42947536571703715,
+        -2.7755575615628914e-17
+      ]
+    },
+    {
+      "joint": "front_left_maxon",
+      "cad_xyz_m": [
+        0.6840554759389936,
+        0.032676231116056415,
+        2.0183091163635254
+      ],
+      "width_m": 0.05999999865889549,
+      "width_provenance": "span of tessellated idler fragments at this wheel; not a drawing width",
+      "body_xyz_m": [
+        0.5960932299494752,
+        0.42947543090961426,
+        -2.7755575615628914e-17
+      ]
+    },
+    {
+      "joint": "front_right_maxon",
+      "cad_xyz_m": [
+        1.5601015374548017,
+        0.03267623111605647,
+        2.0183091163635254
+      ],
+      "width_m": 0.05999999865889549,
+      "width_provenance": "span of tessellated idler fragments at this wheel; not a drawing width",
+      "body_xyz_m": [
+        0.5960932299494752,
+        -0.44657063060619384,
+        2.7755575615628914e-17
+      ]
+    }
+  ],
+  "leadscrew": {
+    "size_m": [
+      0.0081481716779368,
+      0.13481250536278824,
+      0.008276657048750913
+    ],
+    "cad_min_m": [
+      1.0919429827987954,
+      -0.0065679293184075505,
+      1.3256465225070988
+    ],
+    "cad_max_m": [
+      1.1000911544767322,
+      0.1282445760443807,
+      1.3339231795558497
+    ],
+    "body_center_m": [
+      -0.09243103538257591,
+      0.01751383821084418,
+      0.02816209224693013
+    ]
+  },
+  "rail": {
+    "size_m": [
+      0.01999999955296561,
+      0.10000000149011617,
+      1.3811174426336947e-13
+    ],
+    "cad_min_m": [
+      1.0860308315606995,
+      0.006349999457597712,
+      1.354731174185803
+    ],
+    "cad_max_m": [
+      1.106030831113665,
+      0.10635000094771388,
+      1.3547311741859411
+    ],
+    "body_center_m": [
+      -0.06748471222817809,
+      0.017500075511425628,
+      0.02367376908659935
+    ]
+  },
+  "thermoprobe": {
+    "size_m": [
+      0.004998151187298738,
+      0.07299999892711641,
+      0.004998151187298738
+    ],
+    "cad_min_m": [
+      1.0935317557433257,
+      -0.040873281657695784,
+      1.3072320502379546
+    ],
+    "cad_max_m": [
+      1.0985299069306245,
+      0.032126717269420624,
+      1.3122302014252534
+    ],
+    "body_center_m": [
+      -0.11248476058244616,
+      0.017500075511632796,
+      -0.03704951331019402
+    ]
+  },
+  "big_drum": {
+    "size_m": [
+      4.440892098500626e-16,
+      0.1655506741893766,
+      0.11740792784494136
+    ],
+    "cad_min_m": [
+      0.7217358015477682,
+      -0.015973344389542704,
+      1.595572545058235
+    ],
+    "cad_max_m": [
+      0.7217358015477686,
+      0.1495773297998339,
+      1.7129804729031763
+    ],
+    "body_center_m": [
+      0.2320606225666555,
+      0.3917951053008395,
+      0.03412576158908916
+    ]
+  },
+  "angle_long": {
+    "size_m": [
+      0.028574999421838387,
+      1.214306433183765e-17,
+      0.7251700162887573
+    ],
+    "cad_min_m": [
+      0.8500058650970423,
+      -0.009525000117719175,
+      1.0596309900283813
+    ],
+    "cad_max_m": [
+      0.8785808645188807,
+      -0.009525000117719163,
+      1.7848010063171387
+    ],
+    "body_center_m": [
+      1.1175870984203584e-07,
+      0.2492375420406463,
+      -0.042201231233775616
+    ]
+  },
+  "angle_short": {
+    "size_m": [
+      0.5270500183105469,
+      3.5041414214731503e-16,
+      0.028574999421837166
+    ],
+    "cad_min_m": [
+      0.8500058650970459,
+      -0.009525000117719524,
+      1.756226006895304
+    ],
+    "cad_max_m": [
+      1.3770558834075928,
+      -0.009525000117719173,
+      1.7848010063171411
+    ],
+    "body_center_m": [
+      0.34829762019217236,
+      3.2596288557229514e-08,
+      -0.04220123123377579
+    ]
+  },
+  "mass_kg": {
+    "chassis": 4.0,
+    "roller": 0.05,
+    "provenance": "ASSUMED. The STEP has no mass, density, or inertia."
+  },
+  "max_wheel_torque_nm": {
+    "value": 0.5,
+    "provenance": "ASSUMED. The proxy uses 0.020 N·m, about 1.4 times (chassis mass * g * radius / 4). The same factor on the provisional 4 kg chassis and the CAD idler radius is 0.50 N·m. A blocked wheel can still stall. Not an EC-i52 or ESCON rating."
+  },
+  "velocity_kp": {
+    "value": 0.1,
+    "provenance": "ASSUMED. Saturates the provisional torque near a 5 rad/s speed error, as the proxy loop does."
+  },
+  "visual_mesh": {
+    "nodes_kept": 26285,
+    "nodes_skipped": 117951,
+    "vertices": 42563,
+    "faces": 120280,
+    "path": "meshes/cad_visual.obj",
+    "quantize_m": 0.006
+  }
+}

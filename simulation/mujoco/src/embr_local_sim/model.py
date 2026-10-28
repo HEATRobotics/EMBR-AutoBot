@@ -167,6 +167,10 @@ def build_mjcf(robot: RobotParams, world: WorldSpec | None = None) -> str:
         from embr_local_sim.track_approx import build_track_mjcf
 
         return build_track_mjcf(robot, world)
+    if robot.morphology == "cad":
+        from embr_local_sim.cad_model import build_cad_mjcf
+
+        return build_cad_mjcf(robot, world)
     hx, hy, hz = (0.5 * s for s in robot.chassis_size)
     chassis_z = 0.002
     ixx, iyy, izz = _box_diag_inertia(robot.chassis_mass, *robot.chassis_size)
@@ -254,16 +258,47 @@ def build_mjcf(robot: RobotParams, world: WorldSpec | None = None) -> str:
     return xml
 
 
+def lane_ramp_geoms(extras: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """A slope under each track, with the belly left clear.
+
+    A full-width ramp lets the plate high-center. These lanes are only as
+    wide as the rollers. `angle_deg` is the slope. The low end sits on the floor.
+    """
+    spec = (extras or {}).get("track_ramps")
+    if not spec:
+        return []
+    angle = math.radians(float(spec["angle_deg"]))
+    length = float(spec["length"])
+    start = float(spec.get("x", spec.get("start_x", 0.0)))
+    thick = 0.006
+    half = 0.5 * length
+    out: list[dict[str, Any]] = []
+    for i, lane in enumerate(spec.get("lanes") or []):
+        y = float(lane["y"])
+        width = float(lane["width"])
+        out.append(
+            {
+                "name": f"lane_ramp_{i}",
+                "pos": (start + half * math.cos(angle), y, half * math.sin(angle) - thick),
+                "size": (half, 0.5 * width, thick),
+                "euler": (0.0, -angle, 0.0),
+                "rgba": "0.72 0.46 0.18 1",
+            }
+        )
+    return out
+
+
 def _world_geoms(robot: RobotParams, world: WorldSpec) -> str:
     floor_mu = robot.floor_friction
     chunks: list[str] = []
     if world.kind == "split_friction":
         left = world.left_friction if world.left_friction is not None else 1.1
         right = world.right_friction if world.right_friction is not None else 0.15
+        span = float((world.extras or {}).get("layout_scale", 1.0))
         chunks.append(
-            f"""    <geom name="floor_left" type="plane" size="4 4 0.05" pos="0 {2.0} 0"
+            f"""    <geom name="floor_left" type="plane" size="{4 * span} {4 * span} 0.05" pos="0 {2.0 * span} 0"
           friction="{left} 0.005 0.0001" contype="1" conaffinity="2" group="0"/>
-    <geom name="floor_right" type="plane" size="4 4 0.05" pos="0 {-2.0} 0"
+    <geom name="floor_right" type="plane" size="{4 * span} {4 * span} 0.05" pos="0 {-2.0 * span} 0"
           friction="{right} 0.005 0.0001" contype="1" conaffinity="2" group="0"/>"""
         )
     else:
@@ -272,8 +307,9 @@ def _world_geoms(robot: RobotParams, world: WorldSpec) -> str:
             floor_rgba = "0.16 0.22 0.14 1"
         elif world.kind in ("engineering", "course"):
             floor_rgba = "0.22 0.22 0.20 1"
+        half = float((world.extras or {}).get("floor_half", 5.0))
         chunks.append(
-            f"""    <geom name="floor" type="plane" size="5 5 0.05"
+            f"""    <geom name="floor" type="plane" size="{half} {half} 0.05"
           rgba="{floor_rgba}" friction="{_friction_attr(floor_mu)}"
           contype="1" conaffinity="2" group="0"/>"""
         )
@@ -302,6 +338,18 @@ def _world_geoms(robot: RobotParams, world: WorldSpec) -> str:
           rgba="0.45 0.48 0.42 1" contype="1" conaffinity="2" group="0"/>"""
         )
 
+    for ramp in lane_ramp_geoms(world.extras):
+        px, py, pz = ramp["pos"]
+        sx, sy, sz = ramp["size"]
+        _ex, ey, ez = ramp["euler"]
+        rgba = str(ramp.get("rgba", "0.62 0.42 0.22 1"))
+        chunks.append(
+            f"""    <geom name="{ramp['name']}" type="box"
+          pos="{px:.5f} {py:.5f} {pz:.5f}" euler="0 {ey:.6f} {ez:.6f}"
+          size="{sx:.5f} {sy:.5f} {sz:.5f}"
+          rgba="{rgba}" contype="1" conaffinity="2" group="0"/>"""
+        )
+
     if world.kind == "bumps":
         h = world.bump_height_scale * robot.wheel_radius
         for i, x in enumerate((0.22, 0.34, 0.48)):
@@ -328,9 +376,8 @@ def _world_geoms(robot: RobotParams, world: WorldSpec) -> str:
         movable = bool(stone.get("movable", False))
         mass = float(stone.get("mass", 0.08))
         if movable:
-            ixx = mass * (sy**2 + sz**2) / 12.0
-            iyy = mass * (sx**2 + sz**2) / 12.0
-            izz = mass * (sx**2 + sy**2) / 12.0
+            # size is the MuJoCo half-extent. Inertia uses the full edge.
+            ixx, iyy, izz = _box_diag_inertia(mass, 2.0 * sx, 2.0 * sy, 2.0 * sz)
             chunks.append(
                 f"""    <body name="stone_{i}" pos="{x} {y} {sz + 0.001}">
       <freejoint name="stone_{i}_free"/>

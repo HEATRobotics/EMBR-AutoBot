@@ -84,11 +84,20 @@ def _apply_key(ch: str, sim: Simulator, hold: dict[str, float]) -> None:
         sim.enqueue(UiRequest(kind="step"))
 
 
-def _track_camera(client: Any, mode: str, root_pos: tuple[float, float, float], state: dict[int, dict[str, Any]]) -> None:
+def _track_camera(
+    client: Any,
+    mode: str,
+    root_pos: tuple[float, float, float],
+    state: dict[int, dict[str, Any]],
+    *,
+    span: float,
+    overview: tuple[tuple[float, float, float], tuple[float, float, float]],
+) -> None:
     """Place the camera once when a preset is chosen, then leave it to the mouse.
 
     Click-drag orbits. The scroll wheel moves the camera forward and back.
     Later frames do not write the camera, so driving and a click do not yank it.
+    Overview uses the scene camera, so a yard does not snap to the small proxy view.
     """
     key = id(client)
     slot = state.setdefault(key, {"mode": None})
@@ -97,8 +106,15 @@ def _track_camera(client: Any, mode: str, root_pos: tuple[float, float, float], 
     slot["mode"] = mode
     x, y, z = (float(v) for v in root_pos)
     if mode == "overview":
-        client.camera.position = (0.6, -1.4, 0.95)
-        client.camera.look_at = (0.6, 0.0, 0.0)
+        client.camera.position = overview[0]
+        client.camera.look_at = overview[1]
+    elif span > 2.0:
+        if mode == "close":
+            client.camera.position = (x - 1.5, y - 3.2, z + 1.6)
+            client.camera.look_at = (x + 1.2, y, z + 0.2)
+        else:
+            client.camera.position = (x - 2.2, y - 7.0, z + 3.6)
+            client.camera.look_at = (x + 2.5, y, z + 0.3)
     elif mode == "close":
         client.camera.position = (x + 0.18, y - 0.22, z + 0.14)
         client.camera.look_at = (x, y, z + 0.02)
@@ -239,16 +255,20 @@ def run_viewer(
 ) -> None:
     import viser
 
-    from embr_local_sim.worlds import world_for_mode
+    from embr_local_sim.worlds import prepare_world
 
     params = params or RobotParams()
     if mode:
-        world = world_for_mode(mode, seed=seed)
+        world = prepare_world(mode, seed, params.morphology)
     world = world or WorldSpec(kind="flat")
     sim = Simulator(params=params, world=world, seed=seed)
     sim.reset()
     sim.start_background()
-    if start_mission:
+    if world.kind in ("rough", "yard"):
+        from embr_local_sim.mission import mission_for_robot
+
+        sim.start_mission(mission_for_robot(sim.params, world, 4))
+    elif start_mission:
         sim.start_mission()
 
     _require_free_port(host, port)
@@ -263,14 +283,24 @@ def run_viewer(
         server.gui.main_panel.set_width(300)
     except Exception:
         pass
-    server.scene.set_up_direction("+z")
-    server.initial_camera.position = (0.42, -0.48, 0.28)
-    server.initial_camera.look_at = (0.08, 0.0, 0.03)
+    from embr_local_sim.body import resolve_body
 
+    body = resolve_body(sim.params.morphology)
+    server.scene.set_up_direction("+z")
+    server.initial_camera.position = body.camera_position
+    server.initial_camera.look_at = body.camera_look_at
+    if world.kind == "rough" and params.morphology == "cad":
+        server.initial_camera.position = (0.4, -5.5, 2.6)
+        server.initial_camera.look_at = (2.4, 0.0, 0.12)
+    if world.kind == "yard" and params.morphology == "cad":
+        server.initial_camera.position = (0.4, -5.4, 2.6)
+        server.initial_camera.look_at = (2.8, 0.0, 0.35)
+
+    grid = body.grid_m
     server.scene.add_grid(
         "/grid",
-        width=4.0,
-        height=4.0,
+        width=grid,
+        height=grid,
         plane="xy",
         cell_color=(80, 80, 80),
         section_color=(40, 40, 40),
@@ -326,7 +356,32 @@ def run_viewer(
         initial_mode = "engineering"
     if world.kind in ("wildfire",) or start_mission:
         initial_mode = "wildfire-mission"
-    scene_options = ("basic", "course", "grove", "forest", "engineering", "wildfire-mission")
+    if world.kind == "ramp":
+        initial_mode = "ramp"
+    if world.kind == "wall":
+        initial_mode = "wall"
+    if world.kind == "split_friction":
+        initial_mode = "split-friction"
+    if world.kind == "bumps":
+        initial_mode = "stones"
+    if world.kind == "rough":
+        initial_mode = "rough"
+    if world.kind == "yard":
+        initial_mode = "yard"
+    scene_options = (
+        "basic",
+        "course",
+        "grove",
+        "forest",
+        "engineering",
+        "wildfire-mission",
+        "ramp",
+        "wall",
+        "split-friction",
+        "stones",
+        "rough",
+        "yard",
+    )
     if mode:
         key = mode.replace("_", "-")
         if key in scene_options or key == "wildfire":
@@ -358,16 +413,79 @@ def run_viewer(
             initial_value=False,
             hint="Not available to autonomy unless oracle is on.",
         )
-    with server.gui.add_folder("Mission / autonomy", expand_by_default=False):
-        btn_mission = server.gui.add_button("L4 inspect + return", color="orange")
+    from embr_local_sim.mission import instruction_markdown
+
+    with server.gui.add_folder("Mission / autonomy", expand_by_default=True):
+        instructions = server.gui.add_markdown(instruction_markdown(world))
+        ctx["instructions"] = instructions
+        btn_mission = server.gui.add_button("L4 follow instructions", color="orange")
         btn_goto = server.gui.add_button("L2/L3 goto odom target")
         btn_search = server.gui.add_button("L5 bounded search")
         btn_cancel = server.gui.add_button("Operator STOP / FAULT", color="red")
-        goto_x = server.gui.add_slider("Goto odom x", min=-0.2, max=1.4, step=0.05, initial_value=0.70)
-        goto_y = server.gui.add_slider("Goto odom y", min=-0.6, max=0.6, step=0.05, initial_value=0.00)
+        goto_span = body.view_span_m
+        large = goto_span > 2.0
+        goto_x = server.gui.add_slider(
+            "Goto odom x", min=body.view_min_m, max=goto_span, step=0.05,
+            initial_value=3.0 if large else 0.70,
+        )
+        goto_y = server.gui.add_slider(
+            "Goto odom y", min=-goto_span, max=goto_span, step=0.05, initial_value=0.00,
+        )
         btn_probe = server.gui.add_button("Probe deploy")
         btn_stow = server.gui.add_button("Probe stow")
         oracle = server.gui.add_checkbox("ORACLE / debug (uses labeled GT map)", initial_value=False)
+    from embr_local_sim.inspection import InspectionConfig, elapsed_sim, world_point_to_estimated
+    from embr_local_sim.inspection_run import _world as inspection_world
+    from embr_local_sim.inspection_run import scenario_catalog
+
+    case_names = tuple(scenario_catalog().keys())
+    with server.gui.add_folder("Inspection tests", expand_by_default=False):
+        server.gui.add_markdown(
+            "These five cases are a flat course with no trees or fire. "
+            "Reset scenario replaces the yard. The mission buttons above "
+            "keep the scene that is already on screen."
+        )
+        case_dd = server.gui.add_dropdown("Scenario", options=case_names, initial_value="clear")
+        from embr_local_sim.body import KNOWN_BODIES
+
+        model_options = KNOWN_BODIES
+        model_dd = server.gui.add_dropdown(
+            "Model",
+            options=model_options,
+            initial_value=params.morphology if params.morphology in model_options else "tracks",
+            hint="cad is the Onshape STEP. The others are the older proxies.",
+        )
+        target_span = body.view_span_m
+        insp_tx = server.gui.add_slider(
+            "Target x (world m)", min=body.view_min_m, max=target_span, step=0.05,
+            initial_value=2.5 if target_span > 2.0 else 0.55,
+        )
+        insp_ty = server.gui.add_slider(
+            "Target y (world m)", min=-target_span, max=target_span, step=0.05,
+            initial_value=0.5 if target_span > 2.0 else 0.12,
+        )
+        btn_case_reset = server.gui.add_button("Reset scenario")
+        btn_insp_start = server.gui.add_button("Load flat case and start")
+        btn_insp_cancel = server.gui.add_button("Cancel / Stop", color="red")
+        btn_takeover = server.gui.add_button("Manual takeover")
+        btn_insp_pause = server.gui.add_button("Pause / resume")
+        show_route = server.gui.add_checkbox(
+            "Show bearing",
+            initial_value=False,
+            hint="Inspection cases only. A straight line to the case target, not the mission path.",
+        )
+        show_eval = server.gui.add_checkbox("Evaluation only", initial_value=False, hint="Ground-truth distances. The controller does not use these.")
+        insp_status = server.gui.add_markdown("Idle.")
+    start_marker = server.scene.add_icosphere(
+        "/inspection/start", radius=0.028, position=(0.0, 0.0, 0.03), color=(40, 90, 220)
+    )
+    target_marker = server.scene.add_icosphere(
+        "/inspection/target", radius=0.028, position=(0.55, 0.12, 0.03), color=(220, 140, 40)
+    )
+    start_marker.visible = False
+    target_marker.visible = False
+    route_handle: dict[str, Any] = {"h": None}
+    ctx["insp_case"] = None
     with server.gui.add_folder("Sim"):
         btn_reset = server.gui.add_button("R  reset (teleport)")
         btn_pause = server.gui.add_button("P  pause / resume")
@@ -418,7 +536,14 @@ def run_viewer(
             TeleCmd(velocity=velocity, turn=turn_cmd, timestamp_wall=time.time(), source=source)
         )
 
-    def _rebuild(new_mode: str) -> None:
+    def _rebuild(
+        new_mode: str | None = None,
+        *,
+        world: WorldSpec | None = None,
+        params: RobotParams | None = None,
+        teleport: dict | None = None,
+        seed: int | None = None,
+    ) -> None:
         old: Simulator = ctx["sim"]
         old.enqueue(UiRequest(kind="stop"))
         old.stop_background()
@@ -437,17 +562,35 @@ def run_viewer(
         _lidar_handle["h"] = None
         _probe_handle["h"] = None
         _contact_handle["h"] = None
-        world_new = world_for_mode(new_mode, seed=int(seed_slider.value))
-        sim_new = Simulator(params=ctx["params"], world=world_new, seed=int(seed_slider.value))
-        sim_new.reset()
+        use_seed = int(seed_slider.value) if seed is None else int(seed)
+        params_new = params or ctx["params"]
+        if world is None:
+            world_new = prepare_world(new_mode or "basic", use_seed, params_new.morphology)
+        else:
+            world_new = world
+            from embr_local_sim.body import resolve_body as _resolve_body
+
+            scale = _resolve_body(params_new.morphology).layout_scale
+            if scale != 1.0 and not (world_new.extras or {}).get("layout_scale"):
+                from embr_local_sim.worlds import scale_world
+
+                world_new = scale_world(world_new, scale)
+        sim_new = Simulator(params=params_new, world=world_new, seed=use_seed)
+        sim_new.reset(teleport)
         sim_new.start_background()
         ctx["sim"] = sim_new
+        ctx["params"] = params_new
         ctx["world"] = world_new
         ctx["odom_trace"] = []
         _clear_trace_visual()
         ctx["world_nodes"] = _add_static_world(server, world_new, ctx["params"])
         ch, wh, eh = _add_robot_geometry(server, ctx["params"], sim_new)
         ctx["chassis"], ctx["wheels"], ctx["extra"] = ch, wh, eh
+        panel = ctx.get("instructions")
+        if panel is not None:
+            from embr_local_sim.mission import instruction_markdown
+
+            panel.content = instruction_markdown(world_new)
 
     # Mouse holds and browser key repeats both stamp these. One combined
     # command is sent from the render loop so W+A drives and turns together.
@@ -487,24 +630,94 @@ def run_viewer(
 
     _install_browser_wasd(server)
 
+    def _mission_cfg(level: int):
+        from embr_local_sim.mission import mission_for_robot
+
+        sim_now = _sim()
+        cfg = mission_for_robot(sim_now.params, sim_now.world, level)
+        cfg.oracle = bool(oracle.value)
+        return cfg
+
     @btn_mission.on_click
     def _mission(_) -> None:
-        from embr_local_sim.mission import MissionConfig
+        from embr_local_sim.mission import scene_to_open_for_follow
 
-        cfg = MissionConfig(level=4, oracle=bool(oracle.value))
-        _sim().start_mission(cfg)
+        target = scene_to_open_for_follow(str(ctx["world"].kind))
+        if target is not None:
+            _rebuild(target)
+            try:
+                mode_dd.value = target
+            except Exception:
+                pass
+        ctx["rerun_at"] = None
+        _sim().start_mission(_mission_cfg(4))
 
     @btn_goto.on_click
     def _goto(_) -> None:
-        _sim().start_goto(float(goto_x.value), float(goto_y.value), level=3)
+        cfg = _mission_cfg(3)
+        cfg.goto_x = float(goto_x.value)
+        cfg.goto_y = float(goto_y.value)
+        _sim().start_mission(cfg)
 
     @btn_search.on_click
     def _search(_) -> None:
-        _sim().start_search()
+        _sim().start_mission(_mission_cfg(5))
 
     @btn_cancel.on_click
     def _cancel(_) -> None:
         _sim().cancel_mission("operator_stop")
+
+    def _load_case(start: bool) -> None:
+        spec = dict(scenario_catalog()[str(case_dd.value)])
+        morph = str(model_dd.value)
+        params_new = RobotParams(morphology=morph)  # type: ignore[arg-type]
+        world_new = inspection_world(spec)
+        _rebuild(world=world_new, params=params_new, teleport=dict(spec["spawn"]), seed=int(spec["seed"]))
+        sim_now = _sim()
+        sim_now.sensors.lidar_dropout_after = spec["lidar_dropout_after"]
+        sim_now.probe.config.retract_fault = bool(spec["retract_fault"])
+        ctx["insp_case"] = str(case_dd.value)
+        ctx["insp_spec"] = spec
+        target_scale = float((world_new.extras or {}).get("layout_scale", 1.0))
+        insp_tx.value = float(spec["target_world"][0]) * target_scale
+        insp_ty.value = float(spec["target_world"][1]) * target_scale
+        if start:
+            _begin_inspection()
+
+    def _begin_inspection() -> None:
+        sim_now = _sim()
+        spec = ctx.get("insp_spec") or scenario_catalog()[str(case_dd.value)]
+        sim_now.sensors.lidar_dropout_after = spec["lidar_dropout_after"]
+        sim_now.probe.config.retract_fault = bool(spec["retract_fault"])
+        sx, sy, syaw = sim_now.spawn_pose
+        gx, gy = world_point_to_estimated(sx, sy, syaw, float(insp_tx.value), float(insp_ty.value))
+        sim_now.start_inspection(InspectionConfig(goal_x=gx, goal_y=gy))
+        ctx["insp_saved"] = False
+
+    @btn_case_reset.on_click
+    def _case_reset(_) -> None:
+        _load_case(False)
+
+    @btn_insp_start.on_click
+    def _insp_start(_) -> None:
+        if ctx.get("insp_case") != str(case_dd.value) or ctx["params"].morphology != str(model_dd.value):
+            _load_case(True)
+        else:
+            _begin_inspection()
+
+    @btn_insp_cancel.on_click
+    def _insp_cancel(_) -> None:
+        _sim().cancel_mission("operator_stop")
+
+    @btn_takeover.on_click
+    def _takeover(_) -> None:
+        pressed["w"] = pressed["a"] = pressed["s"] = pressed["d"] = 0.0
+        _tele(0.0, 0.0, "gui-stop")
+
+    @btn_insp_pause.on_click
+    def _insp_pause(_) -> None:
+        gt, _obs = _sim().snapshot()
+        _sim().enqueue(UiRequest(kind="resume" if gt.paused else "pause"))
 
     @btn_probe.on_click
     def _probe(_) -> None:
@@ -535,7 +748,15 @@ def run_viewer(
     def _mode_change(_) -> None:
         wanted = str(mode_dd.value)
         current = str(ctx["world"].kind)
-        alias = {"wildfire-mission": "wildfire", "wildfire": "wildfire", "basic": "flat"}
+        alias = {
+            "wildfire-mission": "wildfire",
+            "wildfire": "wildfire",
+            "basic": "flat",
+            "split-friction": "split_friction",
+            "stones": "bumps",
+            "rough": "rough",
+            "yard": "yard",
+        }
         if alias.get(wanted, wanted) == current:
             return
         _rebuild(wanted)
@@ -588,6 +809,7 @@ def run_viewer(
     morph = {
         "tracks": "distributed-contact track approximation (not a belt, not CAD)",
         "articulated": "articulated roller-pod approximation (not tracks, not CAD)",
+        "cad": "CAD visual from the Onshape STEP; contact is four idler cylinders, mass and torque assumed",
     }.get(params.morphology, "four-wheel skid-steer proxy (not the full EMBR)")
     print(f"EMBR MuJoCo viewer")
     print(f"  scene: {world.kind}   seed: {seed}   morphology: {morph}")
@@ -610,7 +832,12 @@ def run_viewer(
                 _drive_from_keys()
                 sim_now = _sim()
                 gt, obs = sim_now.snapshot()
-                _sync_bodies(sim_now, ctx["chassis"], ctx["wheels"], ctx["extra"], gt)
+                try:
+                    _sync_bodies(sim_now, ctx["chassis"], ctx["wheels"], ctx["extra"], gt)
+                except RuntimeError:
+                    # A refresh can drop the mesh handle. Draw the body again.
+                    ch, wh, eh = _add_robot_geometry(server, sim_now.params, sim_now)
+                    ctx["chassis"], ctx["wheels"], ctx["extra"] = ch, wh, eh
                 if show_lidar.value:
                     _sync_lidar(server, obs)
                 _sync_probe(server, sim_now)
@@ -622,9 +849,47 @@ def run_viewer(
                 _sync_trace(server, ctx["odom_trace"])
                 cam = str(cam_dd.value)
                 for client in server.get_clients().values():
-                    _track_camera(client, cam, gt.root_pos, cam_follow)
+                    _track_camera(
+                        client,
+                        cam,
+                        gt.root_pos,
+                        cam_follow,
+                        span=body.view_span_m,
+                        overview=(
+                            tuple(server.initial_camera.position),
+                            tuple(server.initial_camera.look_at),
+                        ),
+                    )
                 telemetry.content = _telemetry_markdown(
                     gt, obs, n_clients["n"], sim_now, show_gt=bool(show_gt.value)
+                )
+                route = (sim_now.world.extras or {}).get("route")
+                if route and sim_now.mission.state == "COMPLETE":
+                    when = ctx.get("rerun_at")
+                    if when is None:
+                        ctx["rerun_at"] = time.time() + 2.0
+                    elif time.time() >= when:
+                        ctx["rerun_at"] = None
+                        ctx["odom_trace"] = []
+                        _clear_trace_visual()
+                        sim_now.request_reset()
+                        sim_now.start_mission(_mission_cfg(4))
+                else:
+                    ctx["rerun_at"] = None
+                inspecting = ctx.get("insp_case") is not None
+                start_marker.visible = inspecting
+                target_marker.visible = inspecting
+                _sync_inspection(
+                    sim_now,
+                    gt,
+                    insp_status,
+                    start_marker,
+                    target_marker,
+                    route_handle,
+                    server,
+                    show_route=bool(show_route.value) and inspecting,
+                    show_eval=bool(show_eval.value),
+                    target_xy=(float(insp_tx.value), float(insp_ty.value)),
                 )
             except Exception:
                 import traceback
@@ -665,6 +930,22 @@ def _add_static_world(server: Any, world: WorldSpec, params: RobotParams) -> lis
                 position=(cx, 0.0, cz),
                 wxyz=wxyz,
                 color=(110, 120, 105),
+            )
+        )
+    from embr_local_sim.model import lane_ramp_geoms
+
+    for ramp in lane_ramp_geoms(extras):
+        px, py, pz = ramp["pos"]
+        sx, sy, sz = ramp["size"]
+        ey = float(ramp["euler"][1])
+        on_deck = "deck" in str(ramp["name"])
+        handles.append(
+            server.scene.add_box(
+                f"/world/{ramp['name']}",
+                dimensions=(2.0 * sx, 2.0 * sy, 2.0 * sz),
+                position=(px, py, pz),
+                wxyz=(math.cos(ey / 2.0), 0.0, math.sin(ey / 2.0), 0.0),
+                color=(210, 140, 60) if on_deck else (170, 110, 55),
             )
         )
     if world.kind == "bumps":
@@ -711,14 +992,15 @@ def _add_static_world(server: Any, world: WorldSpec, params: RobotParams) -> lis
         )
     for i, src in enumerate(heat):
         kind = str(src.get("kind", "smolder"))
+        target = src.get("role") == "inspection_target"
         color = (255, 90, 20) if kind != "flame" else (255, 160, 40)
         handles.append(
             server.scene.add_icosphere(
                 f"/world/heat_{i}",
-                radius=0.04,
+                radius=0.18 if target else 0.04,
                 position=(float(src.get("x", 0.8)), float(src.get("y", 0.0)), float(src.get("z", 0.03))),
                 color=color,
-                opacity=0.45,
+                opacity=0.9 if target else 0.45,
             )
         )
     for i, shrub in enumerate(extras.get("shrubs") or []):
@@ -793,6 +1075,18 @@ def _add_static_world(server: Any, world: WorldSpec, params: RobotParams) -> lis
                 opacity=float(puff.get("opacity", 0.22)),
             )
         )
+    for i, step in enumerate(extras.get("route") or []):
+        action = str(step.get("action", "drive"))
+        color = {"sample": (255, 150, 40), "return": (40, 120, 220)}.get(action, (230, 230, 210))
+        handles.append(
+            server.scene.add_icosphere(
+                f"/world/route_{i}",
+                radius=0.08,
+                position=(float(step["x"]), float(step["y"]), 0.08),
+                color=color,
+                opacity=0.85,
+            )
+        )
     if extras.get("return_xy"):
         rx, ry = extras["return_xy"]
         handles.append(
@@ -819,16 +1113,45 @@ def _add_static_world(server: Any, world: WorldSpec, params: RobotParams) -> lis
 
 
 def _fidelity_line(params: RobotParams) -> str:
-    if params.morphology == "tracks":
-        from embr_local_sim.track_approx import FIDELITY
+    from embr_local_sim.body import resolve_body
 
-        return FIDELITY
-    if params.morphology == "articulated":
-        return "Four-pod roller approximation — not a belt. Hardware validation pending."
-    return "Four-wheel skid-steer proxy — not EMBR tracks."
+    return resolve_body(params.morphology).fidelity
 
 
 def _add_robot_geometry(server: Any, params: RobotParams, sim: Simulator):
+    if params.morphology == "cad":
+        import trimesh
+
+        from embr_local_sim.cad_model import cad_mesh_path, load_cad_geometry
+
+        loaded = trimesh.load(cad_mesh_path(), force="mesh")
+        chassis_handle = server.scene.add_mesh_simple(
+            "/root/cad_visual",
+            vertices=np.asarray(loaded.vertices, dtype=np.float32),
+            faces=np.asarray(loaded.faces, dtype=np.uint32),
+            color=(176, 182, 186),
+            flat_shading=True,
+            side="double",
+        )
+        wheel_handles = {}
+        _visual_lift_m["m"] = 0.019
+        _clear_spin_handles()
+        for spec in load_cad_geometry()["rollers"]:
+            body = spec["joint"].replace("_maxon", "")
+            wheel_handles[body] = server.scene.add_cylinder(
+                f"/root/{body}",
+                radius=params.wheel_radius,
+                height=params.wheel_width,
+                color=(30, 30, 30),
+            )
+            _spin_handles[body] = server.scene.add_icosphere(
+                f"/root/{body}_spin",
+                radius=0.02,
+                color=(255, 140, 30),
+            )
+        return chassis_handle, wheel_handles, {}
+    _visual_lift_m["m"] = 0.0
+    _clear_spin_handles()
     chassis_color = (120, 160, 130) if params.morphology != "wheels" else (158, 207, 237)
     chassis_handle = server.scene.add_box(
         "/root/chassis",
@@ -874,15 +1197,44 @@ def _add_robot_geometry(server: Any, params: RobotParams, sim: Simulator):
     return chassis_handle, wheel_handles, extra_handles
 
 
+def _quat_rotate(quat: np.ndarray, vector: np.ndarray) -> np.ndarray:
+    w, x, y, z = (float(v) for v in quat)
+    qv = np.array([x, y, z], dtype=np.float64)
+    t = 2.0 * np.cross(qv, vector)
+    return vector + w * t + np.cross(qv, t)
+
+
+def _clear_spin_handles() -> None:
+    for handle in _spin_handles.values():
+        try:
+            handle.remove()
+        except Exception:
+            try:
+                handle.visible = False
+            except Exception:
+                pass
+    _spin_handles.clear()
+
+
 def _sync_bodies(sim: Simulator, chassis_handle, wheel_handles, extra_handles, gt: GroundTruthState) -> None:
-    chassis_handle.position = gt.root_pos
+    if chassis_handle is None:
+        return
+    root_q = np.array(gt.root_quat_wxyz, dtype=np.float64)
+    lift = _quat_rotate(root_q, np.array([0.0, 0.0, _visual_lift_m["m"]], dtype=np.float64))
+    chassis_handle.position = tuple(float(v) for v in (np.array(gt.root_pos, dtype=np.float64) + lift))
     chassis_handle.wxyz = gt.root_quat_wxyz
     for body, handle in wheel_handles.items():
         bid = int(sim.model.body(body).id)
-        pos = tuple(float(v) for v in sim.data.xpos[bid])
+        pos = np.array(sim.data.xpos[bid], dtype=np.float64)
         quat = np.array(sim.data.xquat[bid], dtype=np.float64)
-        handle.position = pos
+        handle.position = tuple(float(v) for v in pos)
         handle.wxyz = _qmul(quat, _RX90)
+        mark = _spin_handles.get(body)
+        if mark is None:
+            continue
+        side = 0.12 if body.endswith("left") else -0.12
+        # Body +Y is the axle. A point on +X orbits as the hinge turns.
+        mark.position = tuple(float(v) for v in (pos + _quat_rotate(quat, np.array([0.09, side, 0.0]))))
     for body, handle in extra_handles.items():
         bid = int(sim.model.body(body).id)
         handle.position = tuple(float(v) for v in sim.data.xpos[bid])
@@ -893,6 +1245,9 @@ _lidar_handle = {"h": None}
 _probe_handle = {"h": None}
 _contact_handle = {"h": None}
 _trace_handle = {"h": None}
+# CAD mesh hangs below the roller contact. This lifts the drawing onto the wheels.
+_visual_lift_m = {"m": 0.0}
+_spin_handles: dict[str, Any] = {}
 
 
 def _sync_lidar(server: Any, obs) -> None:
@@ -1070,6 +1425,103 @@ def _sync_trace(server: Any, trace: list[tuple[float, float, float]]) -> None:
         _trace_handle["h"].colors = colors
 
 
+def _sync_inspection(
+    sim: Simulator,
+    gt: GroundTruthState,
+    status: Any,
+    start_marker: Any,
+    target_marker: Any,
+    route_handle: dict[str, Any],
+    server: Any,
+    *,
+    show_route: bool,
+    show_eval: bool,
+    target_xy: tuple[float, float],
+) -> None:
+    import json
+    from pathlib import Path
+
+    from embr_local_sim.inspection import elapsed_sim
+
+    insp = sim.inspection
+    elapsed = elapsed_sim(insp, gt.sim_time)
+    elapsed_txt = "—" if elapsed is None else f"{elapsed:.1f} s"
+    dist_t = "—" if insp.dist_to_target_m is None else f"{insp.dist_to_target_m:.2f} m"
+    dist_s = "—" if insp.dist_to_start_m is None else f"{insp.dist_to_start_m:.2f} m"
+    lines = [
+        f"**{insp.state}** — {insp.help_text()}",
+        f"Action: `{insp.reason}`",
+        f"Estimated distance to target `{dist_t}`, to start `{dist_s}`",
+        f"Ranges: {insp.sensor_note}. Probe `{sim.probe.state}`.",
+        f"Mission time `{elapsed_txt}` (simulation clock).",
+    ]
+    if insp.measurement_c is not None:
+        lines.append(
+            f"Probe reading `{insp.measurement_c:.0f} °C`, labeled `{insp.measurement_class}` (provisional)."
+        )
+    if show_eval:
+        err_t = math.hypot(gt.root_pos[0] - target_xy[0], gt.root_pos[1] - target_xy[1])
+        sx, sy, _syaw = sim.spawn_pose
+        err_s = math.hypot(gt.root_pos[0] - sx, gt.root_pos[1] - sy)
+        lines.append(
+            f"Evaluation only: ground-truth distance to the world target `{err_t:.2f} m`, "
+            f"to the spawn point `{err_s:.2f} m`."
+        )
+    status.content = "\n\n".join(lines)
+    try:
+        sx, sy, _syaw = sim.spawn_pose
+        start_marker.position = (sx, sy, 0.03)
+        target_marker.position = (target_xy[0], target_xy[1], 0.03)
+    except Exception:
+        pass
+    try:
+        if show_route:
+            positions = (
+                (float(gt.root_pos[0]), float(gt.root_pos[1]), 0.04),
+                (float(target_xy[0]), float(target_xy[1]), 0.04),
+            )
+            if route_handle["h"] is None:
+                route_handle["h"] = server.scene.add_spline_catmull_rom(
+                    "/inspection/bearing",
+                    positions=positions,
+                    color=(230, 160, 40),
+                    line_width=2.0,
+                )
+            else:
+                route_handle["h"].positions = positions
+                route_handle["h"].visible = True
+        elif route_handle["h"] is not None:
+            route_handle["h"].visible = False
+    except Exception:
+        route_handle["h"] = False
+    if insp.state in ("COMPLETE", "BLOCKED", "FAULT", "CANCELLED"):
+        token = id(insp)
+        if getattr(_sync_inspection, "saved", None) != token:
+            _sync_inspection.saved = token  # type: ignore[attr-defined]
+            out = Path("embr-sim-runs") / "inspection" / "manual-last.json"
+            try:
+                out.parent.mkdir(parents=True, exist_ok=True)
+                payload = {
+                    "controller_state": insp.state,
+                    "controller_reason": insp.reason,
+                    "help": insp.help_text(),
+                    "estimated_dist_to_target_m": insp.dist_to_target_m,
+                    "estimated_dist_to_start_m": insp.dist_to_start_m,
+                    "measurement_c": insp.measurement_c,
+                    "measurement_class": insp.measurement_class,
+                    "transitions": list(insp.transitions),
+                    "evaluation_gt": {
+                        "x": gt.root_pos[0],
+                        "y": gt.root_pos[1],
+                        "yaw": gt.yaw,
+                    },
+                    "trace_samples": len(sim.inspection_trace),
+                }
+                out.write_text(json.dumps(payload, indent=2))
+            except OSError:
+                pass
+
+
 def _telemetry_markdown(
     gt: GroundTruthState, obs, n_clients: int, sim: Simulator | None = None, show_gt: bool = False
 ) -> str:
@@ -1088,6 +1540,7 @@ def _telemetry_markdown(
         for h in spots
     ) or "none"
     core = (
+        f"**{mission.get('state')}** — {mission.get('reason') or 'idle'} · "
         f"t `{gt.sim_time:.2f}` s · roll `{gt.roll:.2f}` pitch `{gt.pitch:.2f}` rad · "
         f"vx `{gt.actual_vx_body:.2f}` m/s · cmd `{gt.target_vx:.2f}` turn `{gt.target_wz:.2f}` · "
         f"{'PAUSED' if gt.paused else wd} · contacts {gt.ncon}"

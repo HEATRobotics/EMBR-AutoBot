@@ -25,7 +25,12 @@ embr-local-sim = "embr_local_sim.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-embr_local_sim = ["bundled/**/*.yaml", "bundled/**/*.md"]
+embr_local_sim = [
+    "bundled/**/*.yaml",
+    "bundled/**/*.md",
+    "bundled/**/*.json",
+    "bundled/**/*.obj",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

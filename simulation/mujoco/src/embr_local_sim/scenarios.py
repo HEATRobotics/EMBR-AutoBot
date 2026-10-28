@@ -42,6 +42,7 @@ def load_scenario(path: Path) -> Scenario:
     world = WorldSpec(
         kind=kind,
         wall_x=float(world_raw.get("wall_x", 0.50)),
+        wall_half_y=float(world_raw.get("wall_half_y", 0.45)),
         ramp_angle_deg=float(world_raw.get("ramp_angle_deg", 8.0)),
         ramp_length=float(world_raw.get("ramp_length", 0.70)),
         ramp_start_x=float(world_raw.get("ramp_start_x", 0.28)),
@@ -209,7 +210,7 @@ def run_mission_scenario(path: Path, out_dir: Path | None = None) -> dict[str, A
     ticks_settle = int(round(scenario.settle_s * params.control_hz))
     for _ in range(ticks_settle):
         sim.step_control_tick()
-    sim.mission = MissionMachine(_mission_config(scenario.raw))
+    sim.mission = MissionMachine(_mission_config(scenario.raw), planner=sim.steer_planner)
     if scenario.raw.get("probe_stuck"):
         sim.probe.config.stuck = True
     if scenario.raw.get("lidar_dropout"):

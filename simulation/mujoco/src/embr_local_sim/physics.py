@@ -15,6 +15,7 @@ import numpy as np
 from embr_local_sim.articulated import ART_JOINTS
 from embr_local_sim.controls import VelocityController
 from embr_local_sim.model import RobotParams, WorldSpec, build_mjcf
+from embr_local_sim.inspection import InspectionConfig, InspectionMachine
 from embr_local_sim.mission import MissionConfig, MissionMachine, MissionView
 from embr_local_sim.observation import ControllerOutput, RobotObservation
 from embr_local_sim.posture import PostureController
@@ -103,19 +104,6 @@ def _rotate_body_to_world(quat_wxyz: np.ndarray, vec: np.ndarray) -> np.ndarray:
     return vec + 2.0 * (w * uv + uuv)
 
 
-def _pod_layout(morphology: str):
-    """Return (drive_siblings, n_rollers, all_drive_joints) for pod morphologies."""
-    if morphology == "tracks":
-        from embr_local_sim.track_approx import N_ROLLERS, all_drive_joints, drive_siblings
-
-        return drive_siblings, N_ROLLERS, all_drive_joints
-    if morphology == "articulated":
-        from embr_local_sim.articulated import ROLLER_OFFSETS_M, all_drive_joints, drive_siblings
-
-        return drive_siblings, len(ROLLER_OFFSETS_M), all_drive_joints
-    return None
-
-
 @dataclass
 class UiRequest:
     kind: str
@@ -138,7 +126,9 @@ class Simulator:
         world: WorldSpec | None = None,
         seed: int = 0,
     ) -> None:
-        self.params = params or RobotParams()
+        from embr_local_sim.body import apply_body, pod_drive
+
+        self.params = apply_body(params or RobotParams())
         self.world = world or WorldSpec()
         self.seed = seed
         self.xml = build_mjcf(self.params, self.world)
@@ -149,6 +139,12 @@ class Simulator:
         self.helper = DrivetrainHelperSim(self.params)
         self.gate = CommandGate()
         self.mission = MissionMachine()
+        # None keeps the built-in histogram. Set this before start_mission to
+        # swap in another steer() implementation. Manual drive does not read it.
+        self.steer_planner = None
+        self.inspection = InspectionMachine()
+        self.inspection_trace: list[dict[str, Any]] = []
+        self.spawn_pose = (0.0, 0.0, 0.0)
         self.probe = ProbeMachine()
         self.replay = ReplayLog()
         self.thermal = ThermalField(
@@ -171,7 +167,7 @@ class Simulator:
         self._steps = 0
         self._physics_thread: threading.Thread | None = None
         self._control_period_steps = max(1, int(round(1.0 / (self.params.control_hz * self.params.physics_dt))))
-        layout = _pod_layout(self.params.morphology)
+        layout = pod_drive(self.params.morphology)
         self._podded = layout is not None
         self._siblings = layout[0] if layout else None
         self._n_roll = layout[1] if layout else 1
@@ -220,19 +216,33 @@ class Simulator:
     def set_supervisor_mode(self, mode: str) -> None:
         self.enqueue(UiRequest(kind="supervisor_mode", mode=mode))
 
+    def start_inspection(self, config: InspectionConfig | None = None) -> None:
+        """Start the inspection mission. Does not start the heat-search mission."""
+        if config is not None:
+            self.inspection = InspectionMachine(config)
+        self.enqueue(UiRequest(kind="inspection_start"))
+
     def start_mission(self, config: MissionConfig | None = None) -> None:
         if config is not None:
-            self.mission = MissionMachine(config)
+            self.mission = MissionMachine(config, planner=self.steer_planner)
         self.enqueue(UiRequest(kind="mission_start"))
 
     def start_goto(self, x: float, y: float, *, level: int = 3) -> None:
-        cfg = MissionConfig(level=level, goto_x=x, goto_y=y)
-        self.mission = MissionMachine(cfg)
+        from embr_local_sim.mission import mission_for_robot
+
+        cfg = mission_for_robot(self.params, self.world, level)
+        cfg.goto_x = x
+        cfg.goto_y = y
+        self.mission = MissionMachine(cfg, planner=self.steer_planner)
         self.enqueue(UiRequest(kind="mission_start"))
 
     def start_search(self, bound: dict | None = None) -> None:
-        cfg = MissionConfig(level=5, search_bound=bound)
-        self.mission = MissionMachine(cfg)
+        from embr_local_sim.mission import mission_for_robot
+
+        cfg = mission_for_robot(self.params, self.world, 5)
+        if bound is not None:
+            cfg.search_bound = bound
+        self.mission = MissionMachine(cfg, planner=self.steer_planner)
         self.enqueue(UiRequest(kind="mission_start"))
 
     def cancel_mission(self, reason: str = "cancelled") -> None:
@@ -258,6 +268,7 @@ class Simulator:
         x = float(teleport["x"]) if teleport and "x" in teleport else 0.0
         y = float(teleport["y"]) if teleport and "y" in teleport else 0.0
         yaw = float(teleport["yaw"]) if teleport and "yaw" in teleport else 0.0
+        self.spawn_pose = (x, y, yaw)
         adr = self._root_qposadr
         self.data.qpos[adr : adr + 3] = (x, y, z)
         half = 0.5 * yaw
@@ -274,7 +285,10 @@ class Simulator:
         self.helper.reset()
         self.gate.reset()
         self.mission.reset()
+        self.inspection.reset()
         self.probe.reset()
+        self.probe.config.retract_fault = False
+        self.inspection_trace.clear()
         self.posture.reset()
         self.supervisor.reset()
         if not self._podded:
@@ -311,13 +325,23 @@ class Simulator:
                 self.gate.start_mission()
                 self.controller.watchdog_tripped = False
                 self.controller.last_command_wall = wall_now
+                self.inspection.reset()
                 self.mission.start(float(self.data.time))
+            elif req.kind == "inspection_start":
+                self.gate.start_mission()
+                self.controller.watchdog_tripped = False
+                self.controller.last_command_wall = wall_now
+                self.mission.reset()
+                self.inspection.start(float(self.data.time))
             elif req.kind == "mission_cancel":
                 reason = "cancelled"
                 if req.teleport and "reason" in req.teleport:
                     reason = str(req.teleport["reason"])
                 self.gate.mode = "manual"
-                self.mission.cancel(reason, float(self.data.time))
+                if self.inspection.active:
+                    self.inspection.cancel(reason, float(self.data.time))
+                elif self.mission.state not in ("IDLE", "COMPLETE", "FAULT"):
+                    self.mission.cancel(reason, float(self.data.time))
                 self.controller.ingest(
                     DriveCommand(0.0, 0.0, wall_now, source="mission-cancel"),
                     wall_now=wall_now,
@@ -368,7 +392,10 @@ class Simulator:
         owner = self.gate.on_tele(tele)
         if owner == "rejected":
             return
-        if self.gate.takeover and self.mission.state not in ("IDLE", "COMPLETE", "FAULT"):
+        if self.gate.takeover and self.inspection.active:
+            self.inspection.cancel("manual_takeover", float(self.data.time))
+            self.gate.takeover = False
+        elif self.gate.takeover and self.mission.state not in ("IDLE", "COMPLETE", "FAULT"):
             self.mission.cancel("manual_takeover", float(self.data.time))
             self.gate.takeover = False
         self._last_tele = tele
@@ -459,7 +486,12 @@ class Simulator:
                 self.data.ctrl[self._act_id[name]] = value
         angle = float(self.data.qpos[self._probe_qpos])
         target = self.probe.tick(sim_time=float(self.data.time), angle=angle)
-        if not self.probe.config.stuck:
+        if self.probe.config.stuck:
+            pass
+        elif self.probe.state == "FAULT":
+            # Hold the hinge. A retraction fault must not keep driving it shut.
+            self.data.ctrl[self._probe_act] = angle
+        else:
             self.data.ctrl[self._probe_act] = target
         return tau
 
@@ -558,7 +590,7 @@ class Simulator:
                 gt_x=gt.root_pos[0],
                 gt_y=gt.root_pos[1],
                 gt_yaw=gt.yaw,
-                mission_state=self.mission.state,
+                mission_state=self.inspection.state if self.inspection.state != "IDLE" else self.mission.state,
                 probe_c=obs.probe_c,
                 thermal_max_c=thermal_max,
                 lidar_min=lidar_min,
@@ -593,13 +625,75 @@ class Simulator:
             imu_valid=True,
         )
 
+    def _trace_inspection(self, gt: GroundTruthState, obs: SensorObservations, tele: TeleCmd) -> None:
+        """Evaluation stream. The inspection controller does not read this log."""
+        if self.inspection.state == "IDLE":
+            return
+        if self.inspection_trace:
+            last_t = float(self.inspection_trace[-1]["sim_time"])
+            if gt.sim_time - last_t < 0.10 and self.inspection.state == self.inspection_trace[-1]["mission_state"]:
+                return
+        hits = [
+            {"geom1": c.geom1, "geom2": c.geom2, "dist": c.dist}
+            for c in gt.contacts
+            if c.dist < 0.002
+        ]
+        self.inspection_trace.append(
+            {
+                "sim_time": gt.sim_time,
+                "mission_state": self.inspection.state,
+                "reason": self.inspection.reason,
+                "tele_velocity": tele.velocity,
+                "tele_turn": tele.turn,
+                "odom_x": obs.wheel_odom_x,
+                "odom_y": obs.wheel_odom_y,
+                "odom_yaw": obs.wheel_odom_yaw,
+                "lidar_valid": obs.lidar_valid,
+                "lidar_stamp_sim": obs.lidar_stamp_sim,
+                "lidar_n": len(obs.lidar_ranges),
+                "probe_state": obs.probe_state,
+                "probe_c": obs.probe_c,
+                "gt_x": gt.root_pos[0],
+                "gt_y": gt.root_pos[1],
+                "gt_yaw": gt.yaw,
+                "gt_speed": math.hypot(gt.root_linvel_world[0], gt.root_linvel_world[1]),
+                "contacts": hits,
+            }
+        )
+
     def _tick_mission(self, wall_now: float) -> None:
         if self.gate.mode != "mission":
             return
-        if self.mission.state in ("IDLE", "COMPLETE", "FAULT"):
-            return
         gt, obs = self.snapshot()
         view = self._mission_view(obs, gt)
+        if self.inspection.active or self.inspection.state in ("COMPLETE", "BLOCKED", "FAULT", "CANCELLED"):
+            if self.inspection.state in ("COMPLETE", "BLOCKED", "FAULT", "CANCELLED"):
+                already = self.inspection_trace and self.inspection_trace[-1]["mission_state"] in (
+                    "COMPLETE",
+                    "BLOCKED",
+                    "FAULT",
+                    "CANCELLED",
+                )
+                if not already:
+                    self._trace_inspection(gt, obs, TeleCmd(0.0, 0.0, wall_now, source="inspection"))
+                return
+            tele = self.inspection.tick(view, wall=wall_now)
+            if self.inspection.probe_command == "deploy":
+                self.probe.request_deploy(float(self.data.time))
+            elif self.inspection.probe_command == "stow":
+                self.probe.request_stow(float(self.data.time))
+            if self.probe.extended or self.inspection.state in (
+                "STOP_FOR_INSPECTION",
+                "DEPLOY_PROBE",
+                "SAMPLE",
+                "RETRACT_PROBE",
+            ):
+                tele = TeleCmd(0.0, 0.0, tele.timestamp_wall, source=tele.source)
+            self._trace_inspection(gt, obs, tele)
+            self._apply_tele(tele, wall_now)
+            return
+        if self.mission.state in ("IDLE", "COMPLETE", "FAULT"):
+            return
         tele = self.mission.tick(view, wall=wall_now)
         if self.mission.probe_command == "deploy":
             self.probe.request_deploy(float(self.data.time))

@@ -21,8 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_cad_archive_still_missing():
     status = cad_status()
     assert status["archive_found"] is False
-    assert status["mesh_files"] == []
-    assert "STEP" in status["blocker"]
+    assert [Path(path).name for path in status["mesh_files"]] == ["cad_visual.obj"]
+    assert "not packaged" in status["blocker"]
     manifest = load_manifest()
     assert all(not slot.available for slot in manifest.slots.values())
     assert mjcf_asset_compiler(manifest) == ""

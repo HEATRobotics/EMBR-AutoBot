@@ -850,7 +850,9 @@ class MissionMachine:
                     velocity = 0.0
 
         command = TeleCmd(velocity=velocity, turn=turn, timestamp_wall=wall, source="mission")
-        if self.reason not in ("vfh", "backing_up"):
+        # A planner owns its command, including a teammate's model. The stuck
+        # yaw is only for the classical fallback, which does not return a command.
+        if around is None:
             command = self._if_stuck(view, wall, command)
         self.last_tele = command
         # Stall watchdog is for goto/search levels. Level 4 keeps the original

@@ -94,11 +94,11 @@ def test_steer_planner_assigned_before_start_mission_is_used():
         def steer(self, ctx):
             return TeleCmd(0.4, 0.9, ctx.wall, source="mission"), "custom"
 
-    sim = Simulator(params=RobotParams(), world=WorldSpec(kind="flat"), seed=1)
+    sim = Simulator(params=RobotParams(), world=WorldSpec(kind="wall", wall_x=0.22, wall_half_y=2.0), seed=1)
     sim.reset()
     sim.steer_planner = _Right()
     sim.start_mission()
-    sim.run_for(0.3)
+    sim.run_for(1.2)
     assert sim.mission.reason == "custom"
     assert sim.mission.last_tele.velocity == 0.4
     assert sim.mission.last_tele.turn == 0.9

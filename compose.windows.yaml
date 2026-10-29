@@ -48,7 +48,7 @@ services:
     stdin_open: true
     tty: true
     environment:
-      - ROS_DOMAIN_ID=0
+      - ROS_DOMAIN_ID=1
       - ROS_HOME=/tmp/ros
       - EMBR_REPO=/home/${CONTAINER_USER:-embr}/EMBR-AutoBot
       - EMBR_PHYS_WS=/home/${CONTAINER_USER:-embr}/EMBR-AutoBot/embr_phys/ros2_ws

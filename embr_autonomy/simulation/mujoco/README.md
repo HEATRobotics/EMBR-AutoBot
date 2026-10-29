@@ -53,7 +53,7 @@ robot with a motor on each roller. Open the URL the terminal prints. The
 default is [http://127.0.0.1:43147](http://127.0.0.1:43147). If that port is
 taken, the program says so; pick another with `--port 43148`.
 
-`requirements.txt` pins the runtime versions executed on this Mac.
+`requirements.txt` pins the runtime versions that were run; its header says where.
 `requirements-dev.txt` adds the pytest pin. The ranges in `pyproject.toml`
 are what pip is allowed to resolve; the pin files are the set that was run.
 
@@ -303,6 +303,11 @@ Pick another one: `embr-local-sim launch --port 43148`.
 **Missing dependency.** Create the venv and run `python -m pip install -e '.[test]'`
 from `embr_autonomy/simulation/mujoco`. `embr-local-sim doctor` lists the Python packages.
 A missing ROS install is a note, not a failure of this viewer.
+
+**ROS sourced in the same terminal.** Sourcing ROS sets `PYTHONPATH`, which
+the venv also reads. pytest then auto-loads ROS's plugins and fails with
+errors such as `No module named 'lark'`. Run without it:
+`env -u PYTHONPATH python -m pytest`, or use a terminal where ROS is not sourced.
 
 **Missing config or scenario.** The command prints the path it tried and, for
 scenarios, the packaged names. Primitive shapes are used when CAD meshes are

@@ -150,5 +150,5 @@ assumed masses.
 - https://github.com/projectchrono/chrono
 - https://engineering.ok.ubc.ca/2024/05/29/soe-feature-learn-more-about-the-heat-robotics-team-and-their-award-winning-embr-project/
 
-Local pins already in this package: MuJoCo 3.15.0, Viser 1.1.1, NumPy 2.5.4.
+Local pins already in this package: MuJoCo 3.17.0, Viser 1.1.1, NumPy 2.5.4.
 No new dependency was added.

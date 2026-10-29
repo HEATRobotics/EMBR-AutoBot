@@ -148,6 +148,11 @@ Windows and macOS users should follow [Docker development](documentation/docker/
 for Docker Desktop and X11 setup. Use `compose.windows.yaml` on Windows or
 `compose.macos.yaml` on macOS; both provide the `development` service.
 The Docker guide describes the limitations of RViz through XQuartz on macOS.
+For the autonomy container (required for autonomy work unless you run Ubuntu 24.04 and ROS 2 Jazzy natively) and its dependencies, see the
+[Docker autonomy environment](documentation/docker/autonomy.md). It is
+profile-gated, includes the RL and ROS 2 Jazzy Nav2 stack, and does not change
+the default development service. Point-LIO/FAST-LIO setup remains pending the
+team's LiDAR model and ROS 2 port selection.
 
 Continue with the [physical workspace walkthrough](embr_phys/README.md#keyboard-movement-in-rviz-ros-2-humble)
 to drive the simple model with the keyboard. Keep host and container build
@@ -158,6 +163,7 @@ artifacts separate when switching environments.
 | Location | Purpose |
 | --- | --- |
 | [`embr_phys/`](embr_phys/README.md) | ROS workspace: robot descriptions, subsystem packages, and interfaces |
+| [`embr_autonomy/`](embr_autonomy/README.md) | Autonomy workspace: ROS 2 Jazzy navigation and MuJoCo/RL code |
 | [`documentation/workflow.md`](documentation/workflow.md) | Everyday build, visualization, and development steps |
 | [`documentation/architecture.md`](documentation/architecture.md) | ROS packages and development architecture |
 | [`docker/`](docker/) | Container images and entrypoint configuration |

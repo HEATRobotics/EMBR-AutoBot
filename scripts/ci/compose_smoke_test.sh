@@ -26,11 +26,11 @@ fi
 
 cleanup() {
     info "Tearing down ${COMPOSE_FILE}..."
-    docker compose -f "${COMPOSE_FILE}" down --remove-orphans -v || true
+    docker compose --profile '*' -f "${COMPOSE_FILE}" down --remove-orphans -v || true
 }
 trap cleanup EXIT
 
-mapfile -t SERVICES < <(docker compose -f "${COMPOSE_FILE}" config --services)
+mapfile -t SERVICES < <(docker compose --profile '*' -f "${COMPOSE_FILE}" config --services)
 
 if [ "${#SERVICES[@]}" -eq 0 ]; then
     info "No active services in ${COMPOSE_FILE}; nothing to smoke test."
@@ -41,7 +41,7 @@ status=0
 
 for service in "${SERVICES[@]}"; do
     info "Building ${service} (${COMPOSE_FILE})..."
-    if ! docker compose -f "${COMPOSE_FILE}" build "${service}"; then
+    if ! docker compose --profile '*' -f "${COMPOSE_FILE}" build "${service}"; then
         error "${service}: build failed."
         status=1
         continue
@@ -49,10 +49,10 @@ for service in "${SERVICES[@]}"; do
 
     info "Starting ${service} (${COMPOSE_FILE})..."
     up_log="$(mktemp)"
-    if ! docker compose -f "${COMPOSE_FILE}" up -d --force-recreate "${service}" >"${up_log}" 2>&1; then
+    if ! docker compose --profile '*' -f "${COMPOSE_FILE}" up -d --force-recreate "${service}" >"${up_log}" 2>&1; then
         cat "${up_log}"
         error "${service}: failed to start."
-        docker compose -f "${COMPOSE_FILE}" logs "${service}" || true
+        docker compose --profile '*' -f "${COMPOSE_FILE}" logs "${service}" || true
         rm -f "${up_log}"
         status=1
         continue
@@ -63,7 +63,7 @@ for service in "${SERVICES[@]}"; do
     # to finish and settle, then confirm the container is still running.
     running="false"
     for _ in $(seq 1 30); do
-        state="$(docker compose -f "${COMPOSE_FILE}" ps --format '{{.State}}' "${service}" 2>/dev/null || true)"
+        state="$(docker compose --profile '*' -f "${COMPOSE_FILE}" ps --format '{{.State}}' "${service}" 2>/dev/null || true)"
         if [ "${state}" = "running" ]; then
             running="true"
             break
@@ -75,11 +75,11 @@ for service in "${SERVICES[@]}"; do
         success "${service}: running."
     else
         error "${service}: did not reach the running state."
-        docker compose -f "${COMPOSE_FILE}" logs "${service}" || true
+        docker compose --profile '*' -f "${COMPOSE_FILE}" logs "${service}" || true
         status=1
     fi
 
-    docker compose -f "${COMPOSE_FILE}" stop "${service}" || true
+    docker compose --profile '*' -f "${COMPOSE_FILE}" stop "${service}" || true
 done
 
 exit "${status}"

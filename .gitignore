@@ -14,3 +14,8 @@ embr_phys/ros2_ws/log/
 __pycache__/
 *.py[cod]
 .pytest_cache
+
+# embr_autonomy workspace artifacts
+embr_autonomy/ros2_ws/build/
+embr_autonomy/ros2_ws/install/
+embr_autonomy/ros2_ws/log/

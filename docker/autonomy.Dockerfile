@@ -14,8 +14,7 @@ ENV HOME=/home/${USERNAME} \
     ROS_HOME=/tmp/ros \
     MUJOCO_GL=osmesa \
     PYOPENGL_PLATFORM=osmesa \
-    MPLBACKEND=Agg \
-    PATH="/opt/embr-venv/bin:${PATH}"
+    MPLBACKEND=Agg
 
 # Noble replaces libgl1-mesa-glx with libgl1-mesa-dri.
 RUN apt-get update \

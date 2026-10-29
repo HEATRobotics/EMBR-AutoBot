@@ -12,12 +12,12 @@ failed return, not a success.
 
 Reports from the automated runs are written to `embr-sim-runs/inspection/`.
 A browser run writes `embr-sim-runs/inspection/manual-last.json` when the
-mission stops. Run the commands below from `simulation/mujoco`.
+mission stops. Run the commands below from `embr_autonomy/simulation/mujoco`.
 
 No new packages. The existing install is enough.
 
 ```bash
-cd simulation/mujoco
+cd embr_autonomy/simulation/mujoco
 .venv/bin/embr-local-sim launch --host 127.0.0.1 --port 43170
 ```
 
@@ -26,7 +26,7 @@ Open the URL the terminal prints. If that port is taken, pick another free port.
 Automated check:
 
 ```bash
-cd simulation/mujoco
+cd embr_autonomy/simulation/mujoco
 .venv/bin/pytest tests/test_inspection.py -q
 ```
 

@@ -2,9 +2,10 @@
 
 Simulation implementation verified; physical accuracy unvalidated.
 
-The default launch is unchanged: four-wheel skid-steer proxy, basic scene.
-`--morphology tracks` and `--scene course` / `--scene grove` are the research
-additions. Nothing here is a hardware measurement.
+`embr-local-sim launch` opens the grove with `--morphology tracks`. The
+four-wheel proxy on the basic scene is still selectable with `--scene basic
+--morphology wheels`, and `headless` defaults to it. Nothing here is a
+hardware measurement.
 
 ## What was readable
 

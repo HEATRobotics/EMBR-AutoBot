@@ -13,7 +13,7 @@ dependency setup and the Windows/macOS Docker environment.
 The simple model uses mock ros2_control hardware and command-based odometry for
 an RViz movement proof of concept. No Gazebo or physical motors are required.
 Contact physics for a laptop proxy lives in
-[`simulation/mujoco`](../simulation/mujoco/README.md), separate from this workspace.
+[`embr_autonomy/simulation/mujoco`](../embr_autonomy/simulation/mujoco/README.md), separate from this workspace.
 
 Build from the workspace root (`embr_phys/ros2_ws`), not from
 `src/embr_description`. From the repository root:

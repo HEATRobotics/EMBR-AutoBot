@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "embr-local-sim"
 version = "0.1.0"
-description = "MuJoCo baseline for an EMBR-inspired four-wheel skid-steer proxy, with Viser teleoperation."
+description = "MuJoCo baseline for EMBR stand-in robots (track-roller, wheel, and CAD proxies), with Viser teleoperation."
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [

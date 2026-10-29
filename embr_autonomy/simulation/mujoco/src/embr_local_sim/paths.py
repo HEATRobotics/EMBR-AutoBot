@@ -19,7 +19,7 @@ def repo_root() -> Path:
     if not (bundled / "scenarios").is_dir():
         raise FileNotFoundError(
             "Simulator scenarios are missing from the installed package "
-            f"({bundled}). Reinstall from simulation/mujoco: "
+            f"({bundled}). Reinstall from embr_autonomy/simulation/mujoco: "
             "python -m pip install -e '.[test]'"
         )
     return bundled

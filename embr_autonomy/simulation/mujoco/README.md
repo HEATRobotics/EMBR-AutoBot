@@ -37,10 +37,10 @@ Tested here: **macOS, Python 3.12.14**. The package requires **Python 3.12 or
 Clone the branch and install from the repository root:
 
 ```bash
-git clone https://github.com/Thanmay30/EMBR-AutoBot.git
+git clone https://github.com/HEATRobotics/EMBR-AutoBot.git
 cd EMBR-AutoBot
-git checkout autonomy/mujoco-baseline
-cd simulation/mujoco
+git checkout autonomy/EMBR-19/mujoco-baseline
+cd embr_autonomy/simulation/mujoco
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
@@ -123,10 +123,10 @@ current folder.
 | Platform | Status |
 | --- | --- |
 | macOS, Python 3.12 | Tested locally for install, headless physics, and viewer startup. |
-| Ubuntu / Linux | Expected for teammates using the team ROS machines. The GitHub Actions file runs the headless checks on Ubuntu. That workflow has **not** been executed on GitHub from this change. |
+| Ubuntu / Linux | Expected for teammates using the team ROS machines. The `mujoco simulation` GitHub Actions workflow runs pytest and the headless checks on `ubuntu-latest` and passes. The viewer has not been opened on Ubuntu. |
 | Windows | Not tested. Commands below are the usual venv steps, not a claim that the stack was run. |
 
-Create the venv from `simulation/mujoco` the same way on each OS, then activate:
+Create the venv from `embr_autonomy/simulation/mujoco` the same way on each OS, then activate:
 
 ```bash
 # macOS / Linux bash or zsh
@@ -276,7 +276,7 @@ Copy the config file if you want to keep a variant.
 
 ## Tests and outputs
 
-From `simulation/mujoco`, with the test extra installed:
+From `embr_autonomy/simulation/mujoco`, with the test extra installed:
 
 ```bash
 python -m pytest
@@ -301,7 +301,7 @@ hardware comparison that this package does not do.
 Pick another one: `embr-local-sim launch --port 43148`.
 
 **Missing dependency.** Create the venv and run `python -m pip install -e '.[test]'`
-from `simulation/mujoco`. `embr-local-sim doctor` lists the Python packages.
+from `embr_autonomy/simulation/mujoco`. `embr-local-sim doctor` lists the Python packages.
 A missing ROS install is a note, not a failure of this viewer.
 
 **Missing config or scenario.** The command prints the path it tried and, for

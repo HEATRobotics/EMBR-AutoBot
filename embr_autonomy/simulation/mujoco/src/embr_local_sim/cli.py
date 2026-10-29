@@ -54,7 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     cad = sub.add_parser(
         "cad",
-        help="Open the converted CAD rover in the yard (not the grove proxy)",
+        help="Open the converted CAD rover in the grove (not the track proxy)",
     )
     cad.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
     cad.add_argument("--port", type=int, default=43147, help="Browser server port (default: 43147)")
@@ -284,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
             if not tests.is_dir():
                 print(
                     f"Tests are not inside the installed package ({tests}). "
-                    "From simulation/mujoco run: python -m pytest",
+                    "From embr_autonomy/simulation/mujoco run: python -m pytest",
                     file=sys.stderr,
                 )
                 return 2

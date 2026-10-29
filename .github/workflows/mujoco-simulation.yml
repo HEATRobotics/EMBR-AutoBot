@@ -6,13 +6,13 @@ permissions:
 on:
   pull_request:
     paths:
-      - "simulation/mujoco/**"
+      - "embr_autonomy/simulation/mujoco/**"
       - ".github/workflows/mujoco-simulation.yml"
   push:
     branches:
       - main
     paths:
-      - "simulation/mujoco/**"
+      - "embr_autonomy/simulation/mujoco/**"
       - ".github/workflows/mujoco-simulation.yml"
   workflow_dispatch:
 
@@ -30,17 +30,17 @@ jobs:
           python-version: "3.12"
 
       - name: Install simulator and test dependencies
-        working-directory: simulation/mujoco
+        working-directory: embr_autonomy/simulation/mujoco
         run: |
           python -m pip install -U pip
           python -m pip install -e '.[test]'
 
       - name: Run unit tests
-        working-directory: simulation/mujoco
+        working-directory: embr_autonomy/simulation/mujoco
         run: python -m pytest
 
       - name: Run fixed-step physics
-        working-directory: simulation/mujoco
+        working-directory: embr_autonomy/simulation/mujoco
         run: |
           embr-local-sim headless --steps 200 --scene basic --seed 1
           embr-local-sim headless --steps 80 --scene forest --seed 2

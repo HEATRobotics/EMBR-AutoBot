@@ -36,8 +36,8 @@ wildfire. Learn more in [UBC’s introduction to EMBR](https://engineering.ok.ub
 This repository brings together robot descriptions and control software built
 around **ROS 2 Humble** and **RViz** in a single workspace at
 `embr_phys/ros2_ws`. RViz demonstrations use mock hardware. Contact simulation
-is a separate native Python package in [`simulation/mujoco`](simulation/mujoco/README.md).
-MuJoCo is the selected simulator. From `simulation/mujoco`, `embr-local-sim launch`
+is a separate native Python package in [`embr_autonomy/simulation/mujoco`](embr_autonomy/simulation/mujoco/README.md).
+MuJoCo is the selected simulator. From `embr_autonomy/simulation/mujoco`, `embr-local-sim launch`
 opens the grove and the track-roller approximation in the browser. That model
 is not the full robot, and it is not connected to the ROS workspace. The
 four-wheel proxy is `--scene basic --morphology wheels`. Gazebo is not
@@ -89,7 +89,7 @@ Build a repeatable simulation environment for testing robot behavior before
 integrating changes with hardware.
 
 MuJoCo is the selected direction. A first baseline is documented in
-[`simulation/mujoco`](simulation/mujoco/README.md): install it, run
+[`embr_autonomy/simulation/mujoco`](embr_autonomy/simulation/mujoco/README.md): install it, run
 `embr-local-sim launch` to drive the grove track approximation in the browser,
 and run a headless check. That baseline does
 not finish this goal. Gazebo is not the current simulation path.
@@ -177,8 +177,8 @@ artifacts separate when switching environments.
 | Location | Purpose |
 | --- | --- |
 | [`embr_phys/`](embr_phys/README.md) | ROS workspace: robot descriptions, subsystem packages, and interfaces |
-| [`simulation/mujoco/`](simulation/mujoco/README.md) | Native MuJoCo proxy: install, drive, and headless check. ROS is not required. |
 | [`embr_autonomy/`](embr_autonomy/README.md) | Autonomy workspace: ROS 2 Jazzy navigation and MuJoCo/RL code |
+| [`embr_autonomy/simulation/mujoco`](embr_autonomy/simulation/mujoco/README.md) | Native MuJoCo proxy: install, drive, and headless check. ROS is not required. |
 | [`documentation/workflow.md`](documentation/workflow.md) | Everyday build, visualization, and development steps |
 | [`documentation/architecture.md`](documentation/architecture.md) | ROS packages and development architecture |
 | [`docker/`](docker/) | Container images and entrypoint configuration |

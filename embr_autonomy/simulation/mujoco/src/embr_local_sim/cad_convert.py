@@ -6,7 +6,7 @@ record and a visual OBJ. Does not modify the STEP and does not upload it.
 The STEP header says metres. Onshape does not export mate degrees of freedom,
 so this file records solid extents and placements only.
 
-Re-run from simulation/mujoco:
+Re-run from embr_autonomy/simulation/mujoco:
 
     EMBR_STEP_FILE="/path/to/final FULL CAD.step" \\
     EMBR_STEP_GLB="/tmp/embr-cad-inspect/assembly.glb" \\

@@ -71,18 +71,7 @@ RUN existing_user="$(getent passwd "${USER_UID}" | cut -d: -f1 || true)" \
 
 WORKDIR ${EMBR_REPO}
 
-COPY --chown=${USER_UID}:${USER_GID} embr_phys/ros2_ws/src/ ${EMBR_PHYS_WS}/src/
-RUN apt-get update \
-    && source /opt/ros/${ROS_DISTRO}/setup.bash \
-    && if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then rosdep init; fi \
-    && rosdep update \
-    && rosdep install --from-paths ${EMBR_PHYS_WS}/src --ignore-src --skip-keys ament_python -r -y \
-    && cd ${EMBR_PHYS_WS} \
-    && colcon build --symlink-install \
-    && chown -R "${USER_UID}:${USER_GID}" ${EMBR_PHYS_WS} \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN printf '\nsource /opt/ros/${ROS_DISTRO}/setup.bash\nif [ -f "${EMBR_PHYS_WS}/install/setup.bash" ]; then\n    source "${EMBR_PHYS_WS}/install/setup.bash"\nfi\n' >> /home/${USERNAME}/.bashrc \
+RUN printf '\nsource /opt/ros/${ROS_DISTRO}/setup.bash\n' >> /home/${USERNAME}/.bashrc \
     && chown ${USER_UID}:${USER_GID} /home/${USERNAME}/.bashrc
 
 USER ${USERNAME}

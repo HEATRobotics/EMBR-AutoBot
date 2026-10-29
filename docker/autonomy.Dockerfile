@@ -39,7 +39,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY docker/requirements-rl.txt /tmp/requirements-rl.txt
-RUN python3 -m venv --system-site-packages /opt/embr-venv \
+RUN python3 -m venv /opt/embr-venv \
     && /opt/embr-venv/bin/pip install --no-cache-dir -r /tmp/requirements-rl.txt \
     && rm /tmp/requirements-rl.txt
 

@@ -13,6 +13,7 @@ on:
       - "scripts/environment/setup_native_ubuntu.sh"
       - "scripts/environment/ubuntu-packages.txt"
       - "embr_phys/ros2_ws/src/**"
+      - "embr_autonomy/ros2_ws/src/**"
   push:
     branches:
       - main
@@ -24,6 +25,7 @@ on:
       - "scripts/environment/setup_native_ubuntu.sh"
       - "scripts/environment/ubuntu-packages.txt"
       - "embr_phys/ros2_ws/src/**"
+      - "embr_autonomy/ros2_ws/src/**"
   workflow_dispatch:
 
 jobs:

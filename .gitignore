@@ -18,5 +18,7 @@ __pycache__/
 .venv/
 embr-sim-runs/
 
-# Local PR notes. Not part of the source change.
-.local/
+# embr_autonomy workspace artifacts
+embr_autonomy/ros2_ws/build/
+embr_autonomy/ros2_ws/install/
+embr_autonomy/ros2_ws/log/

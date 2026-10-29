@@ -22,7 +22,7 @@ dependencies.
 ## Build and start
 
 Run commands from the repository root. The `autonomy` profile must be enabled
-to build or start the optional service.
+to build or start the service.
 
 On Windows:
 

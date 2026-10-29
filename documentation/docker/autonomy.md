@@ -80,3 +80,5 @@ isolated Python virtual environment. To add or pin autonomy dependencies,
 update that file and rebuild the `autonomy` image. These packages are not added
 to the regular `development` image. ROS dependencies are installed separately
 in `docker/autonomy.Dockerfile`.
+
+Run RL code with rlpy (for example `rlpy train.py, rlpy -m pip list`). `python3` and `ros2` use the system Python with ROS. The two can't share a process because of the numpy 1/2 split. Connecting RL to ROS will be decided in a follow-up.

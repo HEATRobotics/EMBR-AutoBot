@@ -1,0 +1,17 @@
+name: articulated_drive
+seed: 3
+settle_s: 0.60
+duration_s: 2.20
+params:
+  morphology: articulated
+world:
+  kind: flat
+notes: >
+  Contact drive on three rollers per pod. Chassis displacement is not a pose write.
+commands:
+  - {t: 0.0, duration: 2.0, vx: 0.20, wz: 0.0}
+pass:
+  no_nan: true
+  sign_dx: 1
+  min_final_x: 0.08
+  max_abs_roll: 0.35

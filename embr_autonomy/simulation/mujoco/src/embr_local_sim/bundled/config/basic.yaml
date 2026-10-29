@@ -1,0 +1,7 @@
+# Flat ground and the four-wheel skid-steer proxy.
+# Restart the process after editing. The viewer does not hot-reload this file.
+scene: basic
+seed: 1
+morphology: wheels
+# params:
+#   max_vx: 0.35   # m/s, ASSUMED interactive cap

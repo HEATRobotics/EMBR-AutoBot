@@ -1,0 +1,18 @@
+name: stones
+seed: 3
+settle_s: 0.55
+duration_s: 2.00
+world:
+  kind: forest
+  stones:
+    - {x: 0.28, y: 0.0, size: [0.04, 0.05, 0.03], movable: false}
+    - {x: 0.18, y: 0.08, size: [0.02, 0.02, 0.012], movable: true, mass: 0.035}
+  logs: []
+  heat: []
+notes: Drive into a rigid stone. Chassis must not tunnel; contacts exist.
+commands:
+  - {t: 0.0, duration: 1.8, vx: 0.22, wz: 0.0}
+pass:
+  no_nan: true
+  min_peak_ncon: 8
+  max_abs_penetration: 0.012

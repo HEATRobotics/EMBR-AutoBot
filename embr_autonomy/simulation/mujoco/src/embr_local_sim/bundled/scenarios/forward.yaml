@@ -1,0 +1,16 @@
+name: forward
+seed: 1
+settle_s: 0.60
+duration_s: 2.20
+world:
+  kind: flat
+notes: >
+  After settle, +vx should move the chassis in +X. Displacement comes from
+  wheel contact, not pose teleportation.
+commands:
+  - {t: 0.0, duration: 2.0, vx: 0.20, wz: 0.0}
+pass:
+  no_nan: true
+  sign_dx: 1
+  min_final_x: 0.12
+  max_abs_final_y: 0.08

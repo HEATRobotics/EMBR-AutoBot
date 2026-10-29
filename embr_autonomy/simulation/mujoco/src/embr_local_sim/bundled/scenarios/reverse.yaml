@@ -1,0 +1,14 @@
+name: reverse
+seed: 1
+settle_s: 0.60
+duration_s: 2.20
+world:
+  kind: flat
+notes: Negative vx must produce negative X displacement.
+commands:
+  - {t: 0.0, duration: 2.0, vx: -0.20, wz: 0.0}
+pass:
+  no_nan: true
+  sign_dx: -1
+  max_final_x: -0.08
+  max_abs_final_y: 0.08

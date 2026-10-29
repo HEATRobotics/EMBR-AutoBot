@@ -1,0 +1,17 @@
+name: articulated_rest
+seed: 2
+settle_s: 0.80
+duration_s: 1.00
+params:
+  morphology: articulated
+world:
+  kind: flat
+notes: >
+  Four-pod roller approx at rest. Not CAD. Not a belt.
+commands: []
+pass:
+  no_nan: true
+  max_final_speed: 0.06
+  stable_z_range: [0.024, 0.050]
+  max_abs_roll: 0.25
+  max_abs_penetration: 0.010

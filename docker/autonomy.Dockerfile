@@ -11,7 +11,6 @@ ARG USER_GID=1000
 
 ENV HOME=/home/${USERNAME} \
     EMBR_REPO=/home/${USERNAME}/EMBR-AutoBot \
-    EMBR_PHYS_WS=/home/${USERNAME}/EMBR-AutoBot/embr_phys/ros2_ws \
     ROS_HOME=/tmp/ros \
     MUJOCO_GL=osmesa \
     PYOPENGL_PLATFORM=osmesa \

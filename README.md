@@ -163,6 +163,7 @@ artifacts separate when switching environments.
 | Location | Purpose |
 | --- | --- |
 | [`embr_phys/`](embr_phys/README.md) | ROS workspace: robot descriptions, subsystem packages, and interfaces |
+| [`embr_autonomy/`](embr_autonomy/README.md) | Autonomy workspace: ROS 2 Jazzy navigation and MuJoCo/RL code |
 | [`documentation/workflow.md`](documentation/workflow.md) | Everyday build, visualization, and development steps |
 | [`documentation/architecture.md`](documentation/architecture.md) | ROS packages and development architecture |
 | [`docker/`](docker/) | Container images and entrypoint configuration |

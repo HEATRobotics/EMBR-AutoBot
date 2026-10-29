@@ -13,3 +13,8 @@ embr_phys/ros2_ws/log/
 # Ignore local python caching
 __pycache__/
   *.py[cod]
+
+# embr_autonomy workspace artifacts
+embr_autonomy/ros2_ws/build/
+embr_autonomy/ros2_ws/install/
+embr_autonomy/ros2_ws/log/

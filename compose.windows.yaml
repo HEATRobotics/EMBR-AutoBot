@@ -51,6 +51,7 @@ services:
       - ROS_DOMAIN_ID=1
       - ROS_HOME=/tmp/ros
       - EMBR_REPO=/home/${CONTAINER_USER:-embr}/EMBR-AutoBot
+      - EMBR_AUTONOMY_WS=/home/${CONTAINER_USER:-embr}/EMBR-AutoBot/embr_autonomy/ros2_ws
       - DISPLAY=${DISPLAY:-host.docker.internal:0.0}
       - QT_QPA_PLATFORM=xcb
       - QT_X11_NO_MITSHM=1

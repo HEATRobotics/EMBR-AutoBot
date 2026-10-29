@@ -11,6 +11,7 @@ ARG USER_GID=1000
 
 ENV HOME=/home/${USERNAME} \
     EMBR_REPO=/home/${USERNAME}/EMBR-AutoBot \
+    EMBR_AUTONOMY_WS=/home/${USERNAME}/EMBR-AutoBot/embr_autonomy/ros2_ws \
     ROS_HOME=/tmp/ros \
     MUJOCO_GL=osmesa \
     PYOPENGL_PLATFORM=osmesa \
@@ -70,7 +71,7 @@ RUN existing_user="$(getent passwd "${USER_UID}" | cut -d: -f1 || true)" \
 
 WORKDIR ${EMBR_REPO}
 
-RUN printf '\nsource /opt/ros/${ROS_DISTRO}/setup.bash\n' >> /home/${USERNAME}/.bashrc \
+RUN printf '\n# Load ROS 2 and the EMBR autonomy workspace in interactive shells.\nsource /opt/ros/${ROS_DISTRO}/setup.bash\nif [ -f "${EMBR_AUTONOMY_WS}/install/setup.bash" ]; then\n    source "${EMBR_AUTONOMY_WS}/install/setup.bash"\nfi\n' >> /home/${USERNAME}/.bashrc \
     && chown ${USER_UID}:${USER_GID} /home/${USERNAME}/.bashrc
 
 USER ${USERNAME}

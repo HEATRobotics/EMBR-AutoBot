@@ -1,6 +1,6 @@
 # Docker autonomy environment
 
-The optional `autonomy` service provides a separate ROS 2 Jazzy / Ubuntu 24.04
+The `autonomy` service provides a separate ROS 2 Jazzy / Ubuntu 24.04
 container for reinforcement-learning and simulation-rendering workflows. It
 includes CPU-only PyTorch and torchvision, MuJoCo, Gymnasium, Stable-Baselines3,
 LeRobot, H5py, Weights & Biases, ONNX and ONNX Runtime. It also includes

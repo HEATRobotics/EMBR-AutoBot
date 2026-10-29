@@ -7,12 +7,17 @@ valid. Viewer/detailed modes add trees, canopy (visual-only), and fire markers.
 
 from __future__ import annotations
 
+import copy
 import math
 from typing import Any
 
 import numpy as np
 
 from embr_local_sim.model import WorldSpec
+
+# Scenes were authored for the proxy chassis, which is 0.15 m long.
+# CAD layout scale is (CAD plate length) / this number. It is not a site survey.
+PROXY_CHASSIS_LENGTH_M = 0.15
 
 
 # Known engineering fixtures (metres). These are scenario-authored, not CAD.
@@ -463,8 +468,112 @@ def world_for_mode(mode: str, seed: int = 2) -> WorldSpec:
         return course_case("showcase")
     if key.startswith("course-"):
         return course_case(key.removeprefix("course-"))
+    if key == "ramp":
+        return WorldSpec(kind="ramp", ramp_start_x=0.28, ramp_length=0.70, ramp_width=0.40, seed=seed)
+    if key == "wall":
+        return WorldSpec(kind="wall", wall_x=0.50, seed=seed)
+    if key in {"split-friction", "split"}:
+        return WorldSpec(kind="split_friction", seed=seed)
+    if key in {"stones", "bumps"}:
+        return WorldSpec(kind="bumps", seed=seed)
     # Legacy kinds: flat/wall/ramp/bumps/split_friction/forest-yaml
     return WorldSpec(kind=key if key else "flat")
+
+
+# Metres scale. Temperatures, angles, and flags stay as authored.
+# Free-body mass scales with volume so a stretched rock keeps its density.
+_LINEAR_KEYS = {
+    "x",
+    "y",
+    "z",
+    "radius",
+    "length",
+    "height",
+    "width",
+    "sigma",
+    "exclusion_r",
+    "xmin",
+    "xmax",
+    "ymin",
+    "ymax",
+    "known_wall_face_x",
+}
+
+
+def _scale_mapping(item: dict[str, Any], factor: float) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in item.items():
+        if isinstance(value, dict):
+            out[key] = _scale_mapping(value, factor)
+        elif isinstance(value, list):
+            out[key] = [_scale_mapping(entry, factor) if isinstance(entry, dict) else entry for entry in value]
+        elif key == "size" and isinstance(value, (tuple, list)):
+            out[key] = tuple(float(component) * factor for component in value)
+        elif key == "mass" and isinstance(value, (int, float)):
+            out[key] = float(value) * factor**3
+        elif key == "return_xy" and isinstance(value, (tuple, list)) and len(value) >= 2:
+            out[key] = (float(value[0]) * factor, float(value[1]) * factor)
+        elif key in _LINEAR_KEYS and isinstance(value, (int, float)):
+            out[key] = float(value) * factor
+        else:
+            out[key] = value
+    return out
+
+
+def scale_world(world: WorldSpec, factor: float) -> WorldSpec:
+    """Copy a proxy scene and stretch its metres. Temperatures are unchanged.
+
+    `factor` is CAD plate length / 0.15 m. The result is the same layout in
+    robot lengths, not a measured burn site.
+    """
+    if factor == 1.0:
+        return world
+    cloned = copy.deepcopy(world)
+    for name in (
+        "wall_x",
+        "wall_thickness",
+        "wall_height",
+        "wall_half_y",
+        "ramp_length",
+        "ramp_width",
+        "ramp_start_x",
+    ):
+        setattr(cloned, name, float(getattr(cloned, name)) * factor)
+    cloned.stones = [_scale_mapping(item, factor) for item in cloned.stones]
+    cloned.logs = [_scale_mapping(item, factor) for item in cloned.logs]
+    cloned.heat = [_scale_mapping(item, factor) for item in cloned.heat]
+    cloned.extras = _scale_mapping(dict(cloned.extras or {}), factor)
+    cloned.extras["layout_scale"] = float(factor)
+    cloned.extras["floor_half"] = max(8.0, 5.0 * float(factor))
+    cloned.extras["layout_basis"] = (
+        "proxy chassis 0.15 m; metres times CAD plate length / 0.15. Not a surveyed site."
+    )
+    return cloned
+
+
+def cad_layout_scale() -> float:
+    from embr_local_sim.body import resolve_body
+
+    return resolve_body("cad").layout_scale
+
+
+def prepare_world(mode: str, seed: int, morphology: str) -> WorldSpec:
+    from embr_local_sim.body import resolve_body
+
+    key = str(mode).strip().lower().replace("_", "-")
+    if key in {"rough", "rough-terrain"}:
+        from embr_local_sim.terrain import rough_world
+
+        return rough_world(morphology, seed=seed)
+    if key in {"yard", "burn"}:
+        from embr_local_sim.yard import yard_world
+
+        return yard_world(morphology, seed=seed)
+    world = world_for_mode(mode, seed=seed)
+    scale = resolve_body(morphology).layout_scale
+    if scale != 1.0:
+        return scale_world(world, scale)
+    return world
 
 
 def materialize_world(world: WorldSpec) -> WorldSpec:

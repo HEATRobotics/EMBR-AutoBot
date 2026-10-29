@@ -1,0 +1,32 @@
+name: hotspot_around
+mode: mission
+seed: 3
+settle_s: 0.40
+duration_s: 16.0
+world:
+  kind: flat
+  heat:
+    - {x: 0.95, y: 0.28, z: 0.02, peak_c: 170, sigma: 0.20, kind: smolder, provenance: assumed}
+  extras:
+    trees:
+      - {x: 0.42, y: 0.0, radius: 0.07, height: 0.55}
+mission:
+  timeout_s: 14.0
+  detect_c: 42.0
+  sample_c: 60.0
+  sample_dwell_s: 0.35
+  retreat_s: 1.4
+  search_velocity: 0.55
+  approach_velocity: 0.40
+  blocked_range: 0.16
+  blocked_hold_s: 1.4
+  complete_retreat_x: 0.25
+notes: >
+  A trunk sits on the way to the smolder. The mission must back up, turn,
+  and reach the hotspot from the lidar fan and the thermal bins. It does
+  not read the trunk list or the true hotspot pose.
+pass:
+  no_nan: true
+  mission_end_state: COMPLETE
+  min_hotspots: 1
+  autonomy_used_gt: false

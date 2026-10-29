@@ -17,3 +17,8 @@ __pycache__/
 *.egg-info/
 .venv/
 embr-sim-runs/
+
+# embr_autonomy workspace artifacts
+embr_autonomy/ros2_ws/build/
+embr_autonomy/ros2_ws/install/
+embr_autonomy/ros2_ws/log/

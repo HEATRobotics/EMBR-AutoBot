@@ -15,7 +15,20 @@ from embr_local_sim.model import RobotParams, WorldSpec
 from embr_local_sim.paths import config_dir, repo_root
 from embr_local_sim.scenarios import list_scenarios, run_scenario
 
-SCENES = ("basic", "course", "grove", "forest", "engineering", "wildfire")
+SCENES = (
+    "basic",
+    "course",
+    "grove",
+    "forest",
+    "engineering",
+    "wildfire",
+    "ramp",
+    "wall",
+    "split-friction",
+    "stones",
+    "rough",
+    "yard",
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,6 +51,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Start the optional sensor-driven mission after launch. This is a demonstration, not field autonomy.",
     )
+
+    cad = sub.add_parser(
+        "cad",
+        help="Open the converted CAD rover in the yard (not the grove proxy)",
+    )
+    cad.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
+    cad.add_argument("--port", type=int, default=43147, help="Browser server port (default: 43147)")
+    cad.add_argument("--seed", type=int, default=None, help="Yard seed (default: 1)")
 
     headless = sub.add_parser("headless", help="Run physics without a viewer or browser")
     _add_common(headless)
@@ -75,8 +96,8 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--morphology",
         default=None,
-        choices=("wheels", "articulated", "tracks"),
-        help="launch opens tracks (5 rollers per module, not a belt). headless defaults to wheels. articulated = 3-roller pods.",
+        choices=("wheels", "articulated", "tracks", "cad"),
+        help="launch opens tracks (5 rollers per module, not a belt). headless defaults to wheels. articulated = 3-roller pods. cad = STEP visual plus four idler cylinders.",
     )
 
 
@@ -106,17 +127,19 @@ def _resolve_run(args: argparse.Namespace) -> tuple[RobotParams, WorldSpec, str,
         raise ValueError(f"Unknown scene {scene!r}. Choose one of: {', '.join(SCENES)}.")
     seed = int(args.seed if args.seed is not None else cfg.get("seed", 1))
     morphology = args.morphology or str(cfg.get("morphology", morph_default))
-    if morphology not in ("wheels", "articulated", "tracks"):
-        raise ValueError("morphology must be 'wheels', 'articulated', or 'tracks'")
+    from embr_local_sim.body import KNOWN_BODIES, apply_body
+
+    if morphology not in KNOWN_BODIES:
+        raise ValueError(f"morphology must be one of: {', '.join(KNOWN_BODIES)}")
     overrides = dict(cfg.get("params") or {})
     known = {field.name for field in dataclasses.fields(RobotParams)}
     unknown = sorted(set(overrides) - known)
     if unknown:
         raise ValueError(f"Unknown config params {unknown}. Known fields include {sorted(known)}.")
-    params = RobotParams(morphology=morphology).with_overrides(**overrides)
-    from embr_local_sim.worlds import world_for_mode
+    params = apply_body(RobotParams(morphology=morphology).with_overrides(**overrides))
+    from embr_local_sim.worlds import prepare_world
 
-    world = world_for_mode(scene, seed=seed)
+    world = prepare_world(scene, seed, params.morphology)
     return params, world, scene, seed
 
 
@@ -199,27 +222,38 @@ def _run_scenarios(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def _open_viewer(params, world, scene, seed, host, port, start_mission: bool) -> int:
+    from embr_local_sim.viewer import run_viewer
+
+    try:
+        run_viewer(
+            host=host,
+            port=port,
+            world=world,
+            start_mission=start_mission,
+            params=params,
+            mode=scene,
+            seed=seed,
+        )
+    except RuntimeError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.cmd == "launch":
             params, world, scene, seed = _resolve_run(args)
-            from embr_local_sim.viewer import run_viewer
+            return _open_viewer(
+                params, world, scene, seed, args.host, args.port, bool(args.mission)
+            )
+        if args.cmd == "cad":
+            from embr_local_sim.cad_rover import open_session
 
-            try:
-                run_viewer(
-                    host=args.host,
-                    port=args.port,
-                    world=world,
-                    start_mission=bool(args.mission),
-                    params=params,
-                    mode=scene,
-                    seed=seed,
-                )
-            except RuntimeError as exc:
-                print(exc, file=sys.stderr)
-                return 1
-            return 0
+            params, world, scene, seed = open_session(args.seed)
+            return _open_viewer(params, world, scene, seed, args.host, args.port, True)
         if args.cmd == "headless":
             selected = sum(bool(x) for x in (args.steps, args.scenario, args.all))
             if selected != 1:

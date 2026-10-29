@@ -39,7 +39,9 @@ def test_no_cad_mesh_files_claimed():
     for folder in (root / "models", root / "src"):
         for ext in (".stl", ".obj", ".step", ".stp"):
             found.extend(folder.rglob(f"*{ext}"))
-    assert found == []
+    # The articulated proxy is still primitives. The only mesh is the separate
+    # CAD morphology visual, which does not collide and is not this model.
+    assert [path.name for path in found] == ["cad_visual.obj"]
     src = (root / "src/embr_local_sim/articulated.py").read_text(encoding="utf-8")
     assert "Not imported CAD" in src
     assert "not a moving belt" in src.lower() or "not a belt" in src.lower()

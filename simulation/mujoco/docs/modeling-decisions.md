@@ -10,9 +10,25 @@ additions. Nothing here is a hardware measurement.
 
 The local archive is native SolidWorks: 143 files, about 269 MB, flat
 directory. The top assembly is `final FULL CAD.SLDASM` (about 47 MB). This
-Mac cannot open those binaries. The only STEP files are motor and controller
-parts (`MOTOR_BLDC_EAGLE_POWER_90KV.STEP`, `783734_ESCON2_Compact_60-30.stp`,
-`EC-i52 420W.stp`). There is no full-robot STEP, STL, or OBJ, and no drawing.
+Mac cannot open those binaries. Part STEP files also exist
+(`MOTOR_BLDC_EAGLE_POWER_90KV.STEP`, `783734_ESCON2_Compact_60-30.stp`,
+`EC-i52 420W.stp`).
+
+A later Onshape export, `final FULL CAD.step` (AP242, metres, SHA-256
+`ef7311f2a542b5e3218b761186bb846bcfe26a3e41620ebf7925640b15fb0a6e`), is the
+assembly geometry behind `--morphology cad`. It is not stored in this
+package. The derived visual is `bundled/assets/meshes/cad_visual.obj`.
+That STEP has placements and solid extents. It does not have joint entities,
+masses, or motor ratings. The notes below about the proxy pods are unchanged.
+Scenes for `cad` are the same layouts stretched by plate length / 0.15 m
+(the proxy chassis length). Temperatures stay as authored. The stretch is
+not a surveyed site. The lidar fan used with `cad` is 8 m, assumed.
+Each CAD roller also has an assumed vertical slide (`suspension.py`). MuJoCo has no belt, so a shoe cannot climb. The slide lets one roller rise on a rock. The spring is not a measured suspension. The `rough` scene puts rocks ahead of the robot and a synthetic ember under another rock. The ember stays faint until the sampler is close. It is not a fire model.
+`yard` is authored in metres for the CAD roller: trunks in the 20–50 cm diameter band, a gap wider than the tracks, shrubs, a log, and low rocks. The flame, smoke, and heat peaks are a sensor field. MuJoCo does not combust, and a CFD fire model is too slow to run with the robot.
+`body.py` is the only place that names a morphology for scenes, missions,
+and the viewer. `policy.py` is the only place that picks velocity and turn.
+The mission machine keeps the states and the safety stops. A later policy
+implements the same four methods. It does not write a pose.
 
 Filenames that guided the *kind* of mechanism, not its dimensions:
 
@@ -105,8 +121,8 @@ Reset remains the only root-pose write.
 
 ## Missing data
 
-- Assembly dimensions, joint axes, and joint limits from the current CAD revision.
-- Masses and centers of mass with known materials.
+- Joint axes and joint limits as STEP entities. `--morphology cad` places hinges on lower-idler centers; that is not a mate export.
+- Masses and centers of mass with known materials. The CAD model uses a provisional 4 kg chassis.
 - Sprocket ratio, belt pretension, and grouser geometry.
 - Motor torque, current, and speed limits measured on this robot.
 - Probe travel (leadscrew pitch, carriage stroke).

@@ -51,10 +51,10 @@ fi
 # 2. Active service parity
 # ---------------------------------------------------------------
 
-reference_services="$(docker compose -f "${reference_file}" config --services | sort -u)"
+reference_services="$(docker compose --profile '*' -f "${reference_file}" config --services | sort -u)"
 
 for file in "${COMPOSE_FILES[@]:1}"; do
-    services="$(docker compose -f "${file}" config --services | sort -u)"
+    services="$(docker compose --profile '*' -f "${file}" config --services | sort -u)"
     if [ "${services}" != "${reference_services}" ]; then
         error "Active service mismatch between ${reference_file} and ${file}:"
         diff <(printf '%s\n' "${reference_services}") <(printf '%s\n' "${services}") >&2 || true

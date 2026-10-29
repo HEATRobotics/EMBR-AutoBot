@@ -2,18 +2,21 @@ name: mission_fault
 mode: mission
 seed: 5
 settle_s: 0.50
-duration_s: 6.0
+duration_s: 14.0
 world:
   kind: wall
   wall_x: 0.28
+  wall_half_y: 2.5
 mission:
-  timeout_s: 5.0
+  timeout_s: 14.0
   detect_c: 200.0
   sample_c: 200.0
   blocked_range: 0.16
   blocked_hold_s: 0.80
   search_velocity: 0.70
-notes: Wide wall, no heat. Mission must FAULT blocked rather than invent a path from GT.
+notes: >
+  Wide wall, no heat. The mission backs up and turns once. The wall still
+  fills the fan, so it must FAULT blocked rather than invent a path.
 pass:
   no_nan: true
   mission_end_state: FAULT

@@ -29,6 +29,12 @@ class HeatSource:
     hold_s: float = 1.0e9
     decay_s: float = 30.0
     provenance: str = "assumed"
+    # Buried ember: full strength only inside reveal_m. Farther away the
+    # reading is `leak` times the Gaussian. Default off, so older scenes
+    # stay a plain Gaussian. Not occlusion by a mesh and not combustion.
+    buried: bool = False
+    reveal_m: float = 0.0
+    leak: float = 1.0
 
 
 def _peak_scale(src: HeatSource, sim_time: float) -> float:
@@ -86,7 +92,10 @@ class ThermalField:
             dy = y - src.y
             dz = z - src.z
             r2 = dx * dx + dy * dy + dz * dz
-            extra += src.peak_c * scale * math.exp(-r2 / (2.0 * src.sigma * src.sigma))
+            gain = 1.0
+            if src.buried:
+                gain = 1.0 if math.hypot(dx, dy) <= src.reveal_m else src.leak
+            extra += src.peak_c * scale * gain * math.exp(-r2 / (2.0 * src.sigma * src.sigma))
         t = self.ambient_c + extra
         if self.noise_std > 0.0:
             t += float(self.rng.normal(0.0, self.noise_std))
@@ -124,6 +133,9 @@ def sources_from_world(raw: list[dict] | None) -> list[HeatSource]:
                 hold_s=float(item.get("hold_s", 1.0e9)),
                 decay_s=float(item.get("decay_s", 30.0)),
                 provenance=str(item.get("provenance", "assumed")),
+                buried=bool(item.get("buried", False)),
+                reveal_m=float(item.get("reveal_m", 0.0)),
+                leak=float(item.get("leak", 1.0)),
             )
         )
     return sources

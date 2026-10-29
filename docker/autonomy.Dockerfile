@@ -43,6 +43,12 @@ RUN python3 -m venv /opt/embr-venv \
     && /opt/embr-venv/bin/pip install --no-cache-dir -r /tmp/requirements-rl.txt \
     && rm /tmp/requirements-rl.txt
 
+RUN printf '#!/bin/sh\nexec env -u PYTHONPATH /opt/embr-venv/bin/python "$@"\n' > /usr/local/bin/rlpy \
+    && chmod +x /usr/local/bin/rlpy \
+    && rlpy -c "import torch, mujoco, lerobot" \
+    && source /opt/ros/${ROS_DISTRO}/setup.bash \
+    && python3 -c "from sensor_msgs.msg import Imu; Imu()"
+
 RUN existing_user="$(getent passwd "${USER_UID}" | cut -d: -f1 || true)" \
     && if [ -n "${existing_user}" ]; then \
         if [ "${existing_user}" != "${USERNAME}" ]; then \

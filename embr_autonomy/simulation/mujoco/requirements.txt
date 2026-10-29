@@ -1,6 +1,7 @@
 # Runtime pins executed on macOS arm64, Python 3.12.14.
+# mujoco 3.17.0 run on Linux x86_64, Python 3.12.14; also the version in the autonomy image.
 # Transitive packages are installed by these wheels.
-mujoco==3.15.0
+mujoco==3.17.0
 numpy==2.5.4
 viser==1.1.1
 pyyaml==6.0.3

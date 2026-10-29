@@ -1,0 +1,18 @@
+name: ramp
+seed: 1
+settle_s: 0.60
+duration_s: 4.50
+world:
+  kind: ramp
+  ramp_angle_deg: 8.0
+  ramp_length: 0.70
+  ramp_start_x: 0.28
+notes: >
+  Modest 8 degree ramp. Climbing is a success criterion; tipping would be a
+  valid physical outcome on steeper angles and is not hidden here.
+commands:
+  - {t: 0.0, duration: 4.2, vx: 0.22, wz: 0.0}
+pass:
+  no_nan: true
+  min_final_x: 0.45
+  min_peak_z: 0.045

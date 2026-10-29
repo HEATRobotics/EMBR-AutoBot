@@ -1,0 +1,16 @@
+name: forest
+seed: 2
+settle_s: 0.60
+duration_s: 2.40
+world:
+  kind: forest
+notes: >
+  Rigid logs/stones with matching collision. Displacement is from wheel
+  contact, not pose writes. Not soil, not a surveyed forest.
+commands:
+  - {t: 0.0, duration: 2.2, vx: 0.20, wz: 0.0}
+pass:
+  no_nan: true
+  min_final_x: 0.08
+  min_peak_ncon: 8
+  max_abs_penetration: 0.012

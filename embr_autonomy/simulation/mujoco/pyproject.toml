@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "embr-local-sim"
+version = "0.1.0"
+description = "MuJoCo baseline for EMBR stand-in robots (track-roller, wheel, and CAD proxies), with Viser teleoperation."
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "mujoco>=3.2,<4",
+    "numpy>=2.0,<3",
+    "viser>=0.2,<2",
+    "pyyaml>=6.0,<7",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[project.scripts]
+embr-local-sim = "embr_local_sim.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+embr_local_sim = [
+    "bundled/**/*.yaml",
+    "bundled/**/*.md",
+    "bundled/**/*.json",
+    "bundled/**/*.obj",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"

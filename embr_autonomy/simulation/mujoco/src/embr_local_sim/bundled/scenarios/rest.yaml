@@ -1,0 +1,16 @@
+name: rest
+seed: 1
+settle_s: 0.80
+duration_s: 1.20
+world:
+  kind: flat
+notes: >
+  Free chassis drops onto the floor and stays put with zero command.
+  Pass criteria were declared before looking at a failing run.
+commands: []
+pass:
+  no_nan: true
+  max_final_speed: 0.04
+  stable_z_range: [0.026, 0.045]
+  max_abs_final_y: 0.02
+  max_abs_penetration: 0.008

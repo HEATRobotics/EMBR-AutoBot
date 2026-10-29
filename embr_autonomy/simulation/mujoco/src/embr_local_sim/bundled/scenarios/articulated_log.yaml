@@ -1,0 +1,18 @@
+name: articulated_log
+seed: 4
+settle_s: 0.55
+duration_s: 2.40
+params:
+  morphology: articulated
+world:
+  kind: flat
+  logs:
+    - {x: 0.20, y: 0.0, length: 0.14, radius: 0.016, yaw: 1.57, hinged: false}
+notes: >
+  Rigid log obstacle (labelled, not vegetation). Climb preset is not applied here;
+  the test only requires finite motion without NaN.
+commands:
+  - {t: 0.0, duration: 2.2, vx: 0.18, wz: 0.0}
+pass:
+  no_nan: true
+  max_abs_penetration: 0.012

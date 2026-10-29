@@ -148,7 +148,7 @@ Windows and macOS users should follow [Docker development](documentation/docker/
 for Docker Desktop and X11 setup. Use `compose.windows.yaml` on Windows or
 `compose.macos.yaml` on macOS; both provide the `development` service.
 The Docker guide describes the limitations of RViz through XQuartz on macOS.
-For the optional autonomy container and its dependencies, see the
+For the autonomy container (required for autonomy work unless you run Ubuntu 24.04 and ROS 2 Jazzy natively) and its dependencies, see the
 [Docker autonomy environment](documentation/docker/autonomy.md). It is
 profile-gated, includes the RL and ROS 2 Jazzy Nav2 stack, and does not change
 the default development service. Point-LIO/FAST-LIO setup remains pending the

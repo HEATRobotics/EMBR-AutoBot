@@ -36,7 +36,7 @@ Tested here: **macOS, Python 3.12.14**. The package requires **Python 3.12 or
 
 Clone the branch and install from the repository root:
 
-```bash
+```bash mac OS /Linux
 git clone https://github.com/HEATRobotics/EMBR-AutoBot.git
 cd EMBR-AutoBot
 git checkout autonomy/EMBR-19/mujoco-baseline
@@ -45,6 +45,17 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install -e '.[test]'
+embr-local-sim launch
+```
+```bash windows
+git clone https://github.com/HEATRobotics/EMBR-AutoBot.git
+cd EMBR-AutoBot
+git checkout autonomy/EMBR-19/mujoco-baseline
+cd embr_autonomy/simulation/mujoco
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -e ".[test]"
 embr-local-sim launch
 ```
 

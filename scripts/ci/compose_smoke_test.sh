@@ -6,7 +6,8 @@
 # runners have no X server. It only proves the image builds and the service
 # can be started, per the compose-sync CI requirement.
 #
-# Usage: compose_smoke_test.sh <compose-file>
+# Usage: compose_smoke_test.sh <compose-file> [service]
+#   With no service, every active service is tested.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,7 +18,8 @@ info() { printf '[INFO] %s\n' "$1"; }
 success() { printf '[SUCCESS] %s\n' "$1"; }
 error() { printf '[ERROR] %s\n' "$1" >&2; }
 
-COMPOSE_FILE="${1:?Usage: $0 <compose-file>}"
+COMPOSE_FILE="${1:?Usage: $0 <compose-file> [service]}"
+ONLY_SERVICE="${2:-}"
 
 if [ ! -f "${COMPOSE_FILE}" ]; then
     error "No such compose file: ${COMPOSE_FILE}"
@@ -31,6 +33,14 @@ cleanup() {
 trap cleanup EXIT
 
 mapfile -t SERVICES < <(docker compose --profile '*' -f "${COMPOSE_FILE}" config --services)
+
+if [ -n "${ONLY_SERVICE}" ]; then
+    if ! printf '%s\n' "${SERVICES[@]}" | grep -qx "${ONLY_SERVICE}"; then
+        error "Service '${ONLY_SERVICE}' not found in ${COMPOSE_FILE}."
+        exit 1
+    fi
+    SERVICES=("${ONLY_SERVICE}")
+fi
 
 if [ "${#SERVICES[@]}" -eq 0 ]; then
     info "No active services in ${COMPOSE_FILE}; nothing to smoke test."

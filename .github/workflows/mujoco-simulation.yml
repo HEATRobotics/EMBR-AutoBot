@@ -7,12 +7,14 @@ on:
   pull_request:
     paths:
       - "embr_autonomy/simulation/mujoco/**"
+      - "embr_phys/ros2_ws/src/embr_drivetrain/**"
       - ".github/workflows/mujoco-simulation.yml"
   push:
     branches:
       - main
     paths:
       - "embr_autonomy/simulation/mujoco/**"
+      - "embr_phys/ros2_ws/src/embr_drivetrain/**"
       - ".github/workflows/mujoco-simulation.yml"
   workflow_dispatch:
 
@@ -39,6 +41,10 @@ jobs:
         working-directory: embr_autonomy/simulation/mujoco
         run: python -m pytest
 
+      - name: Check ESCON2 command and feedback contracts
+        working-directory: embr_phys/ros2_ws/src/embr_drivetrain
+        run: python -m pytest test/test_canopen_handler.py test/test_maxon_single_showcase.py
+
       - name: Run fixed-step physics
         working-directory: embr_autonomy/simulation/mujoco
         run: |
@@ -46,3 +52,4 @@ jobs:
           embr-local-sim headless --steps 80 --scene forest --seed 2
           embr-local-sim headless --steps 80 --scene grove --morphology tracks --seed 1
           embr-local-sim motor --headless
+          embr-local-sim drivetrain --headless

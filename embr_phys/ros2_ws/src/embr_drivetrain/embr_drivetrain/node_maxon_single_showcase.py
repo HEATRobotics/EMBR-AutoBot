@@ -17,6 +17,8 @@ from rclpy.node import Node
 from embr_interfaces.msg import OperationStatus
 from std_msgs.msg import Float32MultiArray
 
+from embr_drivetrain.escon_feedback import count_delta, read_signed, validate_encoder
+
 
 class CANOpenNetwork(Node):
 
@@ -149,17 +151,8 @@ class CANOpenNetwork(Node):
         ESCON2 Firmware Specification 2026-02: sections 6.2.44.1,
         6.2.47.1, 6.2.127, and 6.2.134.2. Do not rewrite commissioning.
         """
-        sensors = self._read(self._motor, 0x3000, subindex=1)
-        if (sensors >> 8) & 0xFF != 1:
-            raise ValueError('Configure Sensor 2 as digital incremental encoder (0x3000:01)')
-        pulses = self._read(self._motor, 0x3010, subindex=1)
-        if not 16 <= pulses <= 2500000 or pulses * 4 != self._counts_per_rev:
-            raise ValueError(
-                f'Sensor 2 has {pulses} pulses/rev (0x3010:01); '
-                f'encoder_counts_per_rev must match four times this value '
-                f'(configured {self._counts_per_rev:g})')
-        if self._read(self._motor, 0x60A8) != 0x00B50000:
-            raise ValueError('Configure position units as increments (0x60A8)')
+        validate_encoder(lambda index, subindex: self._read(self._motor, index, subindex),
+                         self._counts_per_rev)
         # Unsupported firmware/objects must fail before motion; no velocity fallback.
         self._previous_counts = self._read_signed(self._motor, 0x60E4, subindex=2)
         self._relative_counts = 0
@@ -167,8 +160,7 @@ class CANOpenNetwork(Node):
     def _update_encoder_angle(self):
         """Unwrap signed 32-bit S2 counts relative to the startup sample."""
         counts = self._read_signed(self._motor, 0x60E4, subindex=2)
-        delta = (counts - self._previous_counts + (1 << 31)) % (1 << 32) - (1 << 31)
-        self._relative_counts += delta
+        self._relative_counts += count_delta(counts, self._previous_counts)
         self._previous_counts = counts
         self._angle = self._relative_counts * 360.0 / (self._counts_per_rev * self._gear_ratio)
 
@@ -287,13 +279,7 @@ class CANOpenNetwork(Node):
         """
         return int.from_bytes(motor.sdo.upload(index, subindex), 'little')
 
-    @staticmethod
-    def _read_signed(motor, index, subindex=0):
-        """Read a signed INTEGER32 feedback object at the specified subindex."""
-        data = motor.sdo.upload(index, subindex)
-        if len(data) != 4:
-            raise ValueError(f'Expected INTEGER32 at 0x{index:04X}:{subindex:02X}')
-        return int.from_bytes(data, 'little', signed=True)
+    _read_signed = staticmethod(read_signed)
 
     def _wait_state(self, motor, expected):
         """

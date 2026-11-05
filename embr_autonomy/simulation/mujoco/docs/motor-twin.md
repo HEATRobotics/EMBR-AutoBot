@@ -3,7 +3,8 @@
 Task [#73](https://github.com/HEATRobotics/EMBR-AutoBot/issues/73), under
 [Component Test Suite #67](https://github.com/HEATRobotics/EMBR-AutoBot/issues/67).
 Live ESCON feedback is [#74](https://github.com/HEATRobotics/EMBR-AutoBot/issues/74).
-The team handoff is in [Maxon Motor Twin — Setup and Testing](https://app.notion.com/p/40f05a18706d809e870ccffbdb0d89eb).
+The team handoff is in the **Maxon Motor Twin — Setup and Testing** section of
+[Autonomy](https://app.notion.com/p/Autonomy-3fc05a18706d802a85dde3496d757925).
 
 This is one fixed motor housing and one continuous shaft hinge in MuJoCo,
 with an orange pointer on the shaft and a fixed blue zero reference. The

@@ -1,0 +1,9 @@
+# EC-i52 420 W, part 667065. Values and sources: docs/motor-twin.md.
+housing_radius_m: 0.026                 # Catalogue diameter 52 mm / 2.
+housing_length_m: 0.070                 # Assumed simplified envelope.
+shaft_radius_m: 0.004                   # Assumed visual geometry.
+shaft_length_m: 0.025                   # Assumed visual geometry.
+motor_mass_kg: 0.752                    # Catalogue motor mass.
+rotor_mass_kg: 0.040                    # Assumed split of total motor mass.
+rotor_axial_inertia_kg_m2: 0.000017      # Catalogue 170 g cm^2 * 1e-7.
+rotor_transverse_inertia_kg_m2: 0.000017 # Assumed transverse inertia.

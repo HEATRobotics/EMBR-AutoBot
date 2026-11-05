@@ -60,6 +60,21 @@ are what pip is allowed to resolve; the pin files are the set that was run.
 Leave that terminal running. Stop with **Ctrl-C**. If the terminal is
 interactive, **q** also quits.
 
+## Standalone Maxon motor twin
+
+`embr-local-sim motor` opens a single EC-i52 motor with an orange shaft
+pointer, fixed housing and synthetic position/speed feedback. Run, pause,
+reset or replay the 12-second sequence from the browser. No hardware or ROS
+is required. This imposes telemetry state in MuJoCo; it does not predict
+motor dynamics. Live ESCON feedback is tracked separately in issue #74.
+
+```bash
+embr-local-sim motor
+embr-local-sim motor --headless --out embr-sim-runs/motor
+```
+
+See [motor setup, input contract and manual checks](docs/motor-twin.md).
+
 ## CAD rover
 
 `launch` above is the grove stand-in. The converted assembly is a different

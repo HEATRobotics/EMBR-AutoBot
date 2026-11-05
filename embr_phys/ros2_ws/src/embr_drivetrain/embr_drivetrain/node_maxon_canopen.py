@@ -15,6 +15,8 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from std_msgs.msg import Float32MultiArray
 
+from embr_drivetrain.escon_feedback import FeedbackPublisher
+
 
 class CANOpenNetwork(Node):
     MOTOR_NAMES = ('front_left', 'back_left', 'front_right', 'back_right')
@@ -53,6 +55,12 @@ class CANOpenNetwork(Node):
         self.declare_parameter('front_right_motor_id', 2)
         self.declare_parameter('back_left_motor_id', 3)
         self.declare_parameter('back_right_motor_id', 4)
+        self.declare_parameter('feedback_host', '127.0.0.1')
+        self.declare_parameter('feedback_port', 0)
+        self.declare_parameter('feedback_period', 0.02)
+        self.declare_parameter('feedback_sdo_timeout', 0.015)
+        self.declare_parameter('feedback_reference_gap', 0.5)
+        self.declare_parameter('feedback_encoder_counts_per_rev', [4096] * 4)
 
         for name in self.MOTOR_NAMES:
             # Mirrored right-side mounting requires opposite rotation for forward travel.
@@ -63,6 +71,8 @@ class CANOpenNetwork(Node):
         self._last_update = None
         self._fault = None
         self._closed = False
+        self._feedback = None
+        self._feedback_timer = None
         self._status_publisher = self.create_publisher(OperationStatus, 'can_status', 10)
         try:
             self._timeout = self._positive_parameter('command_timeout')
@@ -101,6 +111,18 @@ class CANOpenNetwork(Node):
                 motor.sdo.RESPONSE_TIMEOUT = sdo_timeout
                 motor.sdo.MAX_RETRIES = 1
                 self._motors.append(motor)
+            feedback_port = self.get_parameter('feedback_port').value
+            if feedback_port:
+                feedback_period = self._positive_parameter('feedback_period')
+                scales = self.get_parameter('feedback_encoder_counts_per_rev').value
+                if len(scales) != 4:
+                    raise ValueError('Supply four encoder scales in FL, BL, FR, BR order')
+                self._feedback = FeedbackPublisher(
+                    self._motors, [scales[slot] for slot in self._motor_slots],
+                    self.get_parameter('feedback_host').value, feedback_port,
+                    self._positive_parameter('feedback_sdo_timeout'),
+                    self._positive_parameter('feedback_reference_gap'),
+                )
                 
             # Prepare every drive before enabling any drive on a fresh command.
             for motor in self._motors:
@@ -127,10 +149,14 @@ class CANOpenNetwork(Node):
                 Float32MultiArray, 'motor_velocity_levels', self.motor_velocity_callback,
                 QoSProfile(depth=1))
             self._timer = self.create_timer(period, self._publish_frame)
+            if self._feedback is not None:
+                self._feedback_timer = self.create_timer(feedback_period, self._publish_feedback)
             self.get_logger().info(
                 f'ESCON2 node IDs {[m.id for m in self._motors]} ready; '
                 'waiting for motor levels')
         except (Exception, KeyboardInterrupt):
+            if self._feedback is not None:
+                self._feedback.close()
             self._stop_all(disable=True)
             self._network.disconnect()
             super().destroy_node()
@@ -410,6 +436,13 @@ class CANOpenNetwork(Node):
         except Exception as exc:
             self._fail(f'CANopen monitoring failed: {exc}; restart required')
 
+    def _publish_feedback(self):
+        try:
+            self._feedback.poll()
+        except OSError as exc:
+            self.get_logger().warning(f'Motor telemetry UDP send failed: {exc}',
+                                      throttle_duration_sec=5.0)
+
     def destroy_node(self):
         """
         ## Def:
@@ -429,6 +462,9 @@ class CANOpenNetwork(Node):
         if not self._closed:
             self._closed = True
             self._timer.cancel()
+            if self._feedback_timer is not None:
+                self._feedback_timer.cancel()
+                self._feedback.close()
             errors = self._stop_all(disable=True)
             if errors:
                 self.get_logger().error('Shutdown stop unconfirmed: ' + '; '.join(errors))

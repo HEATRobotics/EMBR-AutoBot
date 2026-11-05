@@ -1,0 +1,6 @@
+# Front left, rear left, front right, rear right. Verify IDs and encoder polarity on the bench.
+node_ids: [1, 3, 2, 4]
+directions: [1, 1, -1, -1]
+# Motor revolutions per gearbox output revolution. Working assumption for #74.
+gear_ratio: 20.0
+stale_after_s: 0.5

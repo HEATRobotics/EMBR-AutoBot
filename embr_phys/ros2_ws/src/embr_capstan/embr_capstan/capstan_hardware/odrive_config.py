@@ -9,6 +9,8 @@ motor and does NOT clear errors. After the board reboots and odrivetool
 reconnects, run demo_2_move.py.
 """
 
+" ODrive configuration script must be configured to communicate at 1Mbps "
+
 import odrive
 from odrive.enums import (
     AXIS_STATE_IDLE,
@@ -41,6 +43,11 @@ ENCODER_CS_GPIO = 1
 ENCODER_CPR = 16384
 ENCODER_BANDWIDTH = 1000.0        # rad/s
 
+# CAN Communication               # bit/s (1Mbps, matching STM32 FDCAN3)
+
+CAN_BAUD_RATE = 1_000_000         # bps, must match the ODrive firmware setting which was checked using dev0.can.config.baud_rate command
+
+
 
 # ------------------------------------------------------------
 # Connect and check
@@ -71,6 +78,8 @@ print("Existing errors (not cleared):")
 dump_errors(odrv0)
 
 
+
+
 # ------------------------------------------------------------
 # Apply settings
 # ------------------------------------------------------------
@@ -89,6 +98,7 @@ odrv0.config.enable_brake_resistor = ENABLE_BRAKE_RESISTOR
 odrv0.config.dc_max_positive_current = DC_MAX_POSITIVE_CURRENT
 odrv0.config.dc_max_negative_current = DC_MAX_NEGATIVE_CURRENT
 odrv0.config.dc_bus_overvoltage_trip_level = DC_BUS_OVERVOLTAGE_TRIP
+odrv0.dev0.can.config.baud_rate = CAN_BAUD_RATE
 
 # Motor
 axis.motor.config.pole_pairs = MOTOR_POLE_PAIRS
@@ -103,6 +113,12 @@ axis.encoder.config.cpr = ENCODER_CPR
 axis.encoder.config.bandwidth = ENCODER_BANDWIDTH
 
 print("\nApplied: brake resistor, DC limits, motor, SPI encoder.")
+
+print(f"CAN Bitrate {odrv0.dev0.can.config.baud_rate} bps ")
+
+if(odrv0.dev0.can.config.baud_rate != CAN_BAUD_RATE): 
+    raise RuntimeError(f"CAN bitrate configuration failed.")
+
 
 
 # ------------------------------------------------------------

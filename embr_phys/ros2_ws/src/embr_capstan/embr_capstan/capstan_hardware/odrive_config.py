@@ -1,7 +1,7 @@
 """
 STAGE 1 of 2 — minimal ODrive 3.6 (fw 0.5.6) configuration for the motor demo.
 
-Eagle Power LA8308 KV130 on axis 0, AS5047P on SPI (CSn -> GPIO 1),
+Eagle Power LA8308 KV130 on axis 1, AS5047P on SPI (CSn -> GPIO 1),
 12 V bench supply (5 A), external 2 ohm / 50 W brake resistor.
 
 This script only applies settings and saves/reboots. It does NOT move the
@@ -98,7 +98,7 @@ odrv0.config.enable_brake_resistor = ENABLE_BRAKE_RESISTOR
 odrv0.config.dc_max_positive_current = DC_MAX_POSITIVE_CURRENT
 odrv0.config.dc_max_negative_current = DC_MAX_NEGATIVE_CURRENT
 odrv0.config.dc_bus_overvoltage_trip_level = DC_BUS_OVERVOLTAGE_TRIP
-odrv0.dev0.can.config.baud_rate = CAN_BAUD_RATE
+odrv0.can.config.baud_rate = CAN_BAUD_RATE
 
 # Motor
 axis.motor.config.pole_pairs = MOTOR_POLE_PAIRS
@@ -114,9 +114,9 @@ axis.encoder.config.bandwidth = ENCODER_BANDWIDTH
 
 print("\nApplied: brake resistor, DC limits, motor, SPI encoder.")
 
-print(f"CAN Bitrate {odrv0.dev0.can.config.baud_rate} bps ")
+print(f"CAN Bitrate {odrv0.can.config.baud_rate} bps ")
 
-if(odrv0.dev0.can.config.baud_rate != CAN_BAUD_RATE): 
+if(odrv0.can.config.baud_rate != CAN_BAUD_RATE): 
     raise RuntimeError(f"CAN bitrate configuration failed.")
 
 

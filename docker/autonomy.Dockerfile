@@ -76,3 +76,4 @@ RUN printf '\n# Load ROS 2 and the EMBR autonomy workspace in interactive shells
 
 USER ${USERNAME}
 CMD ["bash"]
+# test PR: autonomy-only change for CI path filtering

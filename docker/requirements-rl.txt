@@ -9,7 +9,7 @@ pandas==3.1.1
 gymnasium[mujoco]==1.4.0
 stable-baselines3==2.9.0
 h5py==3.16.0
-lerobot==0.7.1
+lerobot==0.7.0
 setuptools==84.2.1
 wandb==0.31.0
 onnx==1.23.2

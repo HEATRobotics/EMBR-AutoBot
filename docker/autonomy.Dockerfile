@@ -18,12 +18,12 @@ ENV HOME=/home/${USERNAME} \
     MPLBACKEND=Agg
 
 # Noble replaces libgl1-mesa-glx with libgl1-mesa-dri.
-RUN apt-get update \
 # hadolint ignore=DL3008
 # Version pins omitted for apt packages because exact versions vary by
 # Ubuntu Noble mirror; the image is rebuilt frequently enough that
 # unpinned system packages are acceptable. ROS packages are versioned
 # by the ros-jazzy-* naming scheme.
+RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
         ffmpeg \

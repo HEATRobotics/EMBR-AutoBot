@@ -9,8 +9,6 @@ motor and does NOT clear errors. After the board reboots and odrivetool
 reconnects, run demo_2_move.py.
 """
 
-" ODrive configuration script must be configured to communicate at 1Mbps "
-
 import odrive
 from odrive.enums import (
     AXIS_STATE_IDLE,
@@ -43,9 +41,9 @@ ENCODER_CS_GPIO = 1
 ENCODER_CPR = 16384
 ENCODER_BANDWIDTH = 1000.0        # rad/s
 
-# CAN Communication               # bit/s (1Mbps, matching STM32 FDCAN3)
+# CAN Communication               
 
-CAN_BAUD_RATE = 1_000_000         # bps, must match the ODrive firmware setting which was checked using dev0.can.config.baud_rate command
+CAN_BAUD_RATE = 1_000_000         # bps (1 Mbps, matching STM32 FDCAN3)
 
 
 

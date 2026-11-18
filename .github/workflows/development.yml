@@ -1,0 +1,83 @@
+name: development container
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - "compose.*.yaml"
+      - "docker/development.Dockerfile"
+      - "docker/development-entrypoint.sh"
+      - "docker/.dockerignore"
+      - "scripts/ci/compose_smoke_test.sh"
+      - "scripts/environment/setup_native_ubuntu.sh"
+      - "scripts/environment/ubuntu-packages.txt"
+      - "embr_phys/ros2_ws/src/**"
+      - ".github/workflows/development.yml"
+  push:
+    branches:
+      - main
+      - 'autonomy/EMBR-20/Autonomy-Tech-Stack'
+    paths:
+      - "compose.*.yaml"
+      - "docker/development.Dockerfile"
+      - "docker/development-entrypoint.sh"
+      - "docker/.dockerignore"
+      - "scripts/ci/compose_smoke_test.sh"
+      - "scripts/environment/setup_native_ubuntu.sh"
+      - "scripts/environment/ubuntu-packages.txt"
+      - "embr_phys/ros2_ws/src/**"
+      - ".github/workflows/development.yml"
+  workflow_dispatch:
+
+jobs:
+  hadolint:
+    name: Lint development Dockerfile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lint development Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/development.Dockerfile
+          #Known findings in the existing Dockerfile. Remove entries as they are fixed.
+          ignore: DL3064,DL4006,DL3009,DL3003,SC3046,SC2016
+
+
+  build-and-start:
+    name: Build & start development (${{ matrix.compose_file }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compose_file:
+          - compose.windows.yaml
+          - compose.macos.yaml
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      - name: Build development image and time it
+        run: |
+          started=$(date +%s)
+          docker compose -f "${{ matrix.compose_file }}" build development
+          echo "DEV_BUILD_SECONDS=$(( $(date +%s) - started ))" >> "$GITHUB_ENV"
+
+      - name: Start development service
+        run: ./scripts/ci/compose_smoke_test.sh "${{ matrix.compose_file }}" development
+
+      - name: Report development image build time and size
+        run: |
+          image_bytes=$(docker image inspect embr-bot:development --format '{{.Size}}')
+          image_size=$(numfmt --to=iec-i --suffix=B "$image_bytes")
+          {
+            echo "### Development image (${{ matrix.compose_file }})"
+            echo "- Build time: ${DEV_BUILD_SECONDS} seconds"
+            echo "- Image size: ${image_size}"
+          } >> "$GITHUB_STEP_SUMMARY"

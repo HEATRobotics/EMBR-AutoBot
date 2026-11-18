@@ -81,6 +81,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("doctor", help="Report Python dependencies. ROS is not required.")
     write_model = sub.add_parser("write-model", help="Write generated MJCF to a file")
     write_model.add_argument("--out", default=None, help="Output XML path")
+    motor = sub.add_parser("motor", help="Standalone Maxon motor twin with synthetic feedback")
+    motor.add_argument("--config", default=None, help="Motor parameter YAML (default: packaged EC-i52)")
+    motor.add_argument("--headless", action="store_true", help="Check the 12-second replay without a browser")
+    motor.add_argument("--out", default=None, help="Directory for headless CSV/JSON evidence")
+    motor.add_argument("--write-model", default=None, metavar="PATH", help="Export the motor MJCF and exit")
+    motor.add_argument("--host", default="127.0.0.1", help="Browser bind address (default: localhost)")
+    motor.add_argument("--port", type=int, default=43147, help="Browser server port (default: 43147)")
     return parser
 
 
@@ -269,6 +276,37 @@ def main(argv: list[str] | None = None) -> int:
             from embr_local_sim.doctor import main as doctor_main
 
             return doctor_main()
+        if args.cmd == "motor":
+            import json
+
+            from embr_local_sim.motor import MotorTwin, load_motor_params, motor_mjcf
+
+            params = load_motor_params(args.config)
+            if args.write_model:
+                if args.headless or args.out:
+                    raise ValueError("Use --write-model on its own, without --headless or --out")
+                out = Path(args.write_model)
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text(motor_mjcf(params), encoding="utf-8")
+                print(out)
+                return 0
+            if args.out and not args.headless:
+                raise ValueError("--out requires --headless")
+            twin = MotorTwin(params)
+            if args.headless:
+                from embr_local_sim.motor_demo import run_headless
+
+                summary = run_headless(twin, args.out)
+                print(json.dumps(summary, sort_keys=True))
+                return 0 if summary["passed"] else 1
+            from embr_local_sim.motor_viewer import run_motor_viewer
+
+            try:
+                run_motor_viewer(twin, host=args.host, port=args.port)
+            except RuntimeError as exc:
+                print(exc, file=sys.stderr)
+                return 1
+            return 0
         if args.cmd == "write-model":
             from embr_local_sim.model import write_mjcf
 

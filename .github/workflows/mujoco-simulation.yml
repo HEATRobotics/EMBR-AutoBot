@@ -45,3 +45,4 @@ jobs:
           embr-local-sim headless --steps 200 --scene basic --seed 1
           embr-local-sim headless --steps 80 --scene forest --seed 2
           embr-local-sim headless --steps 80 --scene grove --morphology tracks --seed 1
+          embr-local-sim motor --headless

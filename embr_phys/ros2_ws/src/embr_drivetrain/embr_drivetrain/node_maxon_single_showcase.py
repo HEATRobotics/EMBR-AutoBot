@@ -4,7 +4,8 @@
 Defaults to CANopen motor ID 1 and repeats relative gearbox-output rotations.
 Position comes from Sensor 2 incremental encoder feedback (0x60E4:02);
 startup defines zero. A 1024-pulse encoder supplies 4096 counts per motor
-revolution; gear_ratio defaults to 21 motor revolutions per output revolution.
+revolution; gear_ratio defaults to 20.951417 motor revolutions per output
+revolution (GPX 52 UP absolute reduction 20700/988).
 Commission the EC-i 52 (667065) motor and motion ramps in Motion Studio first.
 """
 
@@ -59,7 +60,7 @@ class CANOpenNetwork(Node):
         self.declare_parameter('showcase_pause', 0.5)
         self.declare_parameter('angle_tolerance', 1.0)
         self.declare_parameter('move_timeout', 600.0)
-        self.declare_parameter('gear_ratio', 21.0)
+        self.declare_parameter('gear_ratio', 20.951417)
         self.declare_parameter('encoder_counts_per_rev', 4096.0)
 
         self._network = canopen.Network()

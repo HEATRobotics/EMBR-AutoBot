@@ -21,8 +21,10 @@ def test_four_named_outputs_and_fixed_chassis():
     pointer = twin.data.geom("front_left_maxon_pointer").xpos.copy()
     for node, counts, rpm in ((1, 20480, 20), (3, 40960, -40), (2, -81920, -80), (4, 61440, 60)):
         assert twin.accept(Feedback("a" * 32, 0, node, 10, .01, 1, counts, counts, 4096, rpm), 10)
-    for joint, turns, rpm in (("front_left_maxon", .25, 1), ("rear_left_maxon", .5, -2),
-                              ("front_right_maxon", 1, 4), ("rear_right_maxon", -.75, -3)):
+    for joint, turns, rpm in (("front_left_maxon", 5, 20), ("rear_left_maxon", 10, -40),
+                              ("front_right_maxon", 20, 80), ("rear_right_maxon", -15, -60)):
+        turns *= 988 / 20700
+        rpm *= 988 / 20700
         state = twin.data.joint(joint)
         assert state.qpos[0] == pytest.approx(turns * math.tau)
         assert state.qvel[0] == pytest.approx(rpm * math.tau / 60)
@@ -45,7 +47,7 @@ def test_expiry_ordering_and_publisher_restart():
     twin.expire(100.51)
     assert twin.states[1].status == "Stale"
     joint = twin.data.joint("front_left_maxon")
-    assert joint.qpos[0] == pytest.approx(math.pi / 2)
+    assert joint.qpos[0] == pytest.approx(5 * 988 / 20700 * math.tau)
     assert joint.qvel[0] == 0
     assert twin.accept(new_publisher, 100.52)
     assert joint.qpos[0] == 0
@@ -142,7 +144,7 @@ def test_packaged_synthetic_replay_reports_every_channel(tmp_path):
     summary = run_drivetrain(twin, live=False, headless=True, out=tmp_path, duration=15,
                              feedback_bind="127.0.0.1", feedback_port=43153, host="127.0.0.1", port=43148)
     assert summary["source"] == "synthetic"
-    assert summary["gear_ratio"] == 20
+    assert summary["gear_ratio"] == pytest.approx(20700 / 988, rel=0, abs=1e-6)
     assert summary["four_motor_sample_window"]
     for motor in summary["motors"].values():
         assert motor["samples"] == 601

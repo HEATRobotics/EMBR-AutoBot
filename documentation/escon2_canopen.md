@@ -145,20 +145,22 @@ bytes. A successful reply does not prove that the counter changes with shaft
 movement. One motor-shaft revolution corresponds to 4096 counts with this
 encoder configuration.
 
-`gear_ratio` defaults to **20.0 motor revolutions per output revolution**.
+`gear_ratio` defaults to **20.951417 motor revolutions per output revolution**,
+matching the GPX 52 UP [absolute reduction of 20700/988](https://www.maxongroup.com/maxon/view/product/gear/planetary/GPX/GPX52/GPX52-2-Stufig-UP/GPX52UPKLSL21D0SQSC)
+(nominally 21:1) and the four-motor twin configuration.
 Encoder scaling stays at 4096 counts per motor revolution. A 180-degree output
-move requires 10 motor revolutions. Use the exact gearbox ratio when known;
+move requires about 10.4757 motor revolutions. Confirm the installed gearbox;
 output accuracy depends on this ratio and gearbox backlash. Set `gear_ratio:=1.0`
 for motor-shaft angles.
 
-`showcase_speed_rpm` caps **motor** speed (default 10 rpm, or 0.5 output rpm
-at 20:1); movement slows near
-its target. `showcase_pause` requires a settled pause between moves (default
-1 s), `angle_tolerance` defaults to 3 output degrees, and `move_timeout` defaults to
+`showcase_speed_rpm` caps **motor** speed; movement slows near its target.
+At 10 motor rpm, the output speed is about 0.477 rpm with this ratio.
+`showcase_pause` requires a settled pause between moves (default 0.5 s),
+`angle_tolerance` defaults to 1 output degree, and `move_timeout` defaults to
 600 s per movement including settling, allowing the longer return to center
-at 20:1 gearing. A 180-degree output move takes at least 60 seconds at the
-default motor speed; returning from the sequence’s net +810 degrees takes
-about 270 seconds plus settling. A timeout or communication fault stops
+at the default gearing. At 10 motor rpm, a 180-degree output move takes at
+least 62.9 seconds; returning from the sequence’s net +810 degrees takes
+about 282.8 seconds plus settling. A timeout or communication fault stops
 motion and requires restart. Commissioned acceleration/deceleration settings
 still apply. Ctrl+C sends quick stop, zero velocity, and disable voltage;
 disabling removes holding torque and does not confirm physical standstill.

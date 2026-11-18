@@ -1,0 +1,52 @@
+name: development container
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - "compose.*.yaml"
+      - "docker/development.Dockerfile"
+      - "docker/development-entrypoint.sh"
+      - "docker/.dockerignore"
+      - "scripts/ci/compose_smoke_test.sh"
+      - "scripts/environment/setup_native_ubuntu.sh"
+      - "scripts/environment/ubuntu-packages.txt"
+      - "embr_phys/ros2_ws/src/**"
+      - ".github/workflows/development.yml"
+  push:
+    branches:
+      - main
+      - autonomy/EMBR-20/Autonomy-Tech-Stack
+    paths:
+      - "compose.*.yaml"
+      - "docker/development.Dockerfile"
+      - "docker/development-entrypoint.sh"
+      - "docker/.dockerignore"
+      - "scripts/ci/compose_smoke_test.sh"
+      - "scripts/environment/setup_native_ubuntu.sh"
+      - "scripts/environment/ubuntu-packages.txt"
+      - "embr_phys/ros2_ws/src/**"
+      - ".github/workflows/development.yml"
+  workflow_dispatch:
+
+jobs:
+  build-and-start:
+    name: Build & start development (${{ matrix.compose_file }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compose_file:
+          - compose.windows.yaml
+          - compose.macos.yaml
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      - name: Build and smoke-start the development service
+        run: ./scripts/ci/compose_smoke_test.sh "${{ matrix.compose_file }}" development

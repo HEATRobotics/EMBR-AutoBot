@@ -88,6 +88,17 @@ def build_parser() -> argparse.ArgumentParser:
     motor.add_argument("--write-model", default=None, metavar="PATH", help="Export the motor MJCF and exit")
     motor.add_argument("--host", default="127.0.0.1", help="Browser bind address (default: localhost)")
     motor.add_argument("--port", type=int, default=43147, help="Browser server port (default: 43147)")
+    drivetrain = sub.add_parser("drivetrain", help="Four Maxon motors with synthetic or live ESCON2 feedback")
+    drivetrain.add_argument("--config", help="Drivetrain YAML with CAN IDs, directions and gearbox ratio")
+    drivetrain.add_argument("--live", action="store_true", help="Receive feedback from ROS dt_can over UDP")
+    drivetrain.add_argument("--headless", action="store_true", help="Collect evidence without a browser")
+    drivetrain.add_argument("--duration", type=float, default=15.0, help="Live headless capture seconds")
+    drivetrain.add_argument("--out", help="Directory for paired CSV and JSON evidence")
+    drivetrain.add_argument("--write-model", metavar="PATH", help="Export the standalone MJCF and exit")
+    drivetrain.add_argument("--feedback-bind", default="127.0.0.1", help="UDP listening address")
+    drivetrain.add_argument("--feedback-port", type=int, default=43153, help="UDP feedback port")
+    drivetrain.add_argument("--host", default="127.0.0.1", help="Browser bind address")
+    drivetrain.add_argument("--port", type=int, default=43148, help="Browser server port")
     return parser
 
 
@@ -307,6 +318,37 @@ def main(argv: list[str] | None = None) -> int:
                 print(exc, file=sys.stderr)
                 return 1
             return 0
+        if args.cmd == "drivetrain":
+            import json
+            import math
+
+            from embr_local_sim.drivetrain import DrivetrainTwin, drivetrain_mjcf, load_drivetrain_config
+            from embr_local_sim.drivetrain_run import run_drivetrain
+
+            if args.write_model:
+                if args.live or args.headless or args.out:
+                    raise ValueError("--write-model cannot be combined with --live, --headless or --out")
+                out = Path(args.write_model)
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text(drivetrain_mjcf(), encoding="utf-8")
+                print(out)
+                return 0
+            if not 1 <= args.port <= 65535 or not 1 <= args.feedback_port <= 65535:
+                raise ValueError("Ports must be between 1 and 65535")
+            if not math.isfinite(args.duration) or args.duration <= 0:
+                raise ValueError("--duration must be finite and positive")
+            twin = DrivetrainTwin(load_drivetrain_config(args.config))
+            try:
+                summary = run_drivetrain(
+                    twin, live=args.live, headless=args.headless, out=args.out, duration=args.duration,
+                    feedback_bind=args.feedback_bind, feedback_port=args.feedback_port,
+                    host=args.host, port=args.port,
+                )
+            except (OSError, RuntimeError) as exc:
+                print(exc, file=sys.stderr)
+                return 1
+            print(json.dumps(summary, sort_keys=True))
+            return 0 if not args.headless or summary["four_motor_sample_window"] else 1
         if args.cmd == "write-model":
             from embr_local_sim.model import write_mjcf
 

@@ -75,6 +75,13 @@ embr-local-sim motor --headless --out embr-sim-runs/motor
 
 See [motor setup, input contract and manual checks](docs/motor-twin.md).
 
+## Four-motor ESCON2 feedback twin
+
+`embr-local-sim drivetrain` opens the four-joint chassis with a synthetic
+replay. Add `--live` to receive measured position and speed from the ROS
+drivetrain node, or use `--headless --out PATH` to record verification data.
+See [four-motor setup and bench checks](docs/drivetrain-twin.md).
+
 ## CAD rover
 
 `launch` above is the grove stand-in. The converted assembly is a different

@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import queue
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import mujoco
 import numpy as np
@@ -13,8 +13,11 @@ import numpy as np
 from embr_local_sim.motor import MotorSample, MotorTwin
 from embr_local_sim.motor_demo import DEMO_DURATION_S, DEMO_HZ, demo_sample
 
+if TYPE_CHECKING:
+    from embr_local_sim.drivetrain import DrivetrainTwin
 
-def add_motor_geometry(server: Any, twin: MotorTwin) -> list[Any]:
+
+def add_motor_geometry(server: Any, twin: MotorTwin | DrivetrainTwin) -> list[Any]:
     """Create browser primitives from compiled MuJoCo geom sizes and colours."""
     handles = []
     for geom_id in range(twin.model.ngeom):
@@ -33,7 +36,7 @@ def add_motor_geometry(server: Any, twin: MotorTwin) -> list[Any]:
     return handles
 
 
-def sync_motor_geometry(twin: MotorTwin, handles: list[Any]) -> None:
+def sync_motor_geometry(twin: MotorTwin | DrivetrainTwin, handles: list[Any]) -> None:
     """Copy MuJoCo's world geom transforms; the browser computes no shaft motion."""
     quat = np.zeros(4)
     for geom_id, handle in enumerate(handles):

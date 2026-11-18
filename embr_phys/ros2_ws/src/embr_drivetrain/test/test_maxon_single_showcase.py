@@ -10,10 +10,24 @@ import pytest
 
 @pytest.fixture
 def handler(monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[1]))
     for name in ('canopen', 'rclpy', 'rclpy.node', 'rclpy.qos',
                  'embr_interfaces', 'embr_interfaces.msg', 'std_msgs', 'std_msgs.msg'):
         monkeypatch.setitem(sys.modules, name, ModuleType(name))
-    sys.modules['rclpy.node'].Node = object
+    class FakeNode:
+        def __init__(self, name):
+            self.parameters = {}
+            self.create_publisher = Mock()
+            self.create_timer = Mock()
+            self.get_logger = Mock()
+
+        def declare_parameter(self, name, default):
+            self.parameters[name] = default
+
+        def get_parameter(self, name):
+            return SimpleNamespace(value=self.parameters[name])
+
+    sys.modules['rclpy.node'].Node = FakeNode
     sys.modules['rclpy.qos'].QoSProfile = Mock()
     sys.modules['embr_interfaces.msg'].OperationStatus = SimpleNamespace
     sys.modules['std_msgs.msg'].Float32MultiArray = SimpleNamespace
@@ -34,6 +48,30 @@ def handler(monkeypatch):
     node.get_logger = Mock()
     monkeypatch.setattr(module.time, 'monotonic', lambda: 100.0)
     return node
+
+
+def test_default_gearbox_ratio_matches_absolute_reduction(handler, monkeypatch):
+    module = sys.modules['canopen']
+    module.Network = Mock()
+    node_class = type(handler)
+    monkeypatch.setattr(node_class, '_wait_state', Mock())
+    monkeypatch.setattr(node_class, '_initialize_encoder', Mock())
+    values = {0x60A9: 0x00B44700, 0x6080: 6000, 0x607F: 6000, 0x6061: 3}
+    monkeypatch.setattr(node_class, '_read', lambda self, motor, index: values[index])
+    node = node_class()
+    assert node._gear_ratio == pytest.approx(20700 / 988, rel=0, abs=1e-6)
+
+
+@pytest.mark.parametrize('counts, expected', [
+    (42909, 42909 * 360 * 988 / (4096 * 20700)),
+    (-42909, -42909 * 360 * 988 / (4096 * 20700)),
+])
+def test_absolute_reduction_output_angles(handler, counts, expected):
+    prepare_sequence(handler)
+    handler._gear_ratio = 20.951417
+    handler._motor.sdo.upload.return_value = counts.to_bytes(4, 'little', signed=True)
+    handler._update_encoder_angle()
+    assert handler._angle == pytest.approx(expected)
 
 
 @pytest.mark.parametrize('data', [[-0.5], [-0.5, 1.0, 0.25, -1.0]])

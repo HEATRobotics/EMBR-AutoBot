@@ -10,6 +10,7 @@ import pytest
 
 @pytest.fixture
 def handler(monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[1]))
     for name in ('canopen', 'rclpy', 'rclpy.node', 'rclpy.qos',
                  'embr_interfaces', 'embr_interfaces.msg', 'std_msgs', 'std_msgs.msg'):
         monkeypatch.setitem(sys.modules, name, ModuleType(name))

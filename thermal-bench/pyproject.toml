@@ -1,0 +1,25 @@
+[project]
+name = "thermal-bench"
+version = "0.1.0"
+description = "Lab rig: 160×120 thermal frame plus a phone or Unitree L2 distance cloud."
+requires-python = ">=3.11"
+dependencies = [
+    "mujoco>=3.1",
+    "numpy",
+    "trimesh",
+    "viser",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+usb = ["opencv-python"]
+
+[project.scripts]
+thermal-bench = "thermal_bench.view:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

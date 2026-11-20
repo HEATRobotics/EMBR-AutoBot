@@ -103,6 +103,8 @@ class MissionConfig:
     oracle_exclusion: list | None = None
     # Ordered instructions. Each step is x, y, action (drive, sample, return), name.
     route: list | None = None
+    # The hot-room search stays on the spot after the probe is hot.
+    hold_after_sample: bool = False
 
 
 def scene_to_open_for_follow(kind: str) -> str | None:
@@ -216,6 +218,9 @@ class MissionMachine:
         self._backup_turn = 0.0
         self._avoid_until: float | None = None
         self._avoid_heading = 0.0
+        self._course_yaw: float | None = None
+        self._pass_yaw: float | None = None
+        self._pass_clear: float | None = None
 
     def reset(self) -> None:
         self.state = "IDLE"
@@ -250,6 +255,58 @@ class MissionMachine:
         self._backup_turn = 0.0
         self._avoid_until = None
         self._avoid_heading = 0.0
+        self._course_yaw = None
+        self._pass_yaw = None
+        self._pass_clear = None
+
+    def _around_the_box(self, view: MissionView, course: float) -> float:
+        """One detour around a box, then back onto the line to the heat.
+
+        The detour is a fixed direction in the world. Asking for "more left"
+        on every tick spins the body and then yanks it back. The chart
+        weights are unchanged.
+        """
+        ranges = [float(r) for r in view.lidar_ranges]
+        angles = [float(a) for a in view.lidar_angles]
+        if not ranges or self._course_yaw is None:
+            return course
+        fan = max(ranges)
+        near = 1.40 if fan <= 2.5 else 4.0
+
+        def wrap(rad: float) -> float:
+            return math.atan2(math.sin(rad), math.cos(rad))
+
+        def cone(heading: float, half: float) -> float:
+            best = float(view.lidar_max_range)
+            for ang, rng in zip(angles, ranges):
+                if not math.isfinite(rng) or rng <= 0.0:
+                    continue
+                if abs(wrap(ang - heading)) <= half:
+                    best = min(best, rng)
+            return best
+
+        def toward(world_yaw: float) -> float:
+            return wrap(world_yaw - view.odom_yaw)
+
+        nose = cone(0.0, 0.45)
+        if self._pass_yaw is None and nose <= near:
+            left = cone(0.90, 0.40)
+            right = cone(-0.90, 0.40)
+            side = 0.80 if left >= right else -0.80
+            self._pass_yaw = wrap(self._course_yaw + side)
+            self._pass_clear = None
+        if self._pass_yaw is None:
+            return course
+        if cone(course, 0.50) > near + 1.5:
+            if self._pass_clear is None:
+                self._pass_clear = view.sim_time
+            elif view.sim_time - self._pass_clear >= 1.0:
+                self._pass_yaw = None
+                self._pass_clear = None
+                return course
+        else:
+            self._pass_clear = None
+        return toward(self._pass_yaw)
 
     def _look_around(self, view: MissionView, preferred: float, wall: float) -> TeleCmd | None:
         """A command that turns toward a longer lidar gap, or None to keep driving."""
@@ -740,8 +797,20 @@ class MissionMachine:
             _idx, forward_c, forward_ang = self._hottest(view)
             if peak >= forward_c + 12.0 and peak >= view.ambient_c + 8.0:
                 goal = aim
+                self._pass_yaw = None
+                self._pass_clear = None
             elif forward_c >= view.ambient_c + 8.0:
                 goal = forward_ang
+                self._pass_yaw = None
+                self._pass_clear = None
+            elif self.config.hold_after_sample:
+                if self._course_yaw is None:
+                    self._course_yaw = view.odom_yaw
+                course = math.atan2(
+                    math.sin(self._course_yaw - view.odom_yaw),
+                    math.cos(self._course_yaw - view.odom_yaw),
+                )
+                goal = self._around_the_box(view, course)
             else:
                 goal = 0.0
             steered = self._vfh(view, wall, goal, t)
@@ -832,6 +901,9 @@ class MissionMachine:
                 if self.config.route and self.route_i + 1 < len(self.config.route):
                     self.route_i += 1
                     self._enter("ROUTE", t, self._route_name())
+                elif cfg.hold_after_sample:
+                    self._enter("COMPLETE", t, "sampled")
+                    velocity = 0.0
                 else:
                     self._enter("RETREAT", t, "sampled")
 

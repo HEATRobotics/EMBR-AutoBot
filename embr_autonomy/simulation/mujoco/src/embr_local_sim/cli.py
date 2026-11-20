@@ -28,6 +28,8 @@ SCENES = (
     "stones",
     "rough",
     "yard",
+    "hot-room",
+    "hot-room-2",
 )
 
 
@@ -50,6 +52,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--mission",
         action="store_true",
         help="Start the optional sensor-driven mission after launch. This is a demonstration, not field autonomy.",
+    )
+    launch.add_argument(
+        "--histogram",
+        action="store_true",
+        help="Hot rooms: drive with the lidar histogram. Leave this off and the steer slot stays empty.",
     )
 
     cad = sub.add_parser(
@@ -77,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory for scenario JSON/CSV logs (default: ./embr-sim-runs)",
     )
 
+    sub.add_parser("rooms", help="Open both hotspot rooms. Click Go to the heat source in each tab.")
     sub.add_parser("test", help="Run pytest for this package")
     sub.add_parser("doctor", help="Report Python dependencies. ROS is not required.")
     write_model = sub.add_parser("write-model", help="Write generated MJCF to a file")
@@ -134,6 +142,8 @@ def _resolve_run(args: argparse.Namespace) -> tuple[RobotParams, WorldSpec, str,
         raise ValueError(f"Unknown scene {scene!r}. Choose one of: {', '.join(SCENES)}.")
     seed = int(args.seed if args.seed is not None else cfg.get("seed", 1))
     morphology = args.morphology or str(cfg.get("morphology", morph_default))
+    if scene in ("hot-room", "hot-room-2") and not args.morphology and "morphology" not in cfg:
+        morphology = "cad"
     from embr_local_sim.body import KNOWN_BODIES, apply_body
 
     if morphology not in KNOWN_BODIES:
@@ -229,7 +239,7 @@ def _run_scenarios(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
-def _open_viewer(params, world, scene, seed, host, port, start_mission: bool) -> int:
+def _open_viewer(params, world, scene, seed, host, port, start_mission: bool, histogram: bool = False) -> int:
     from embr_local_sim.viewer import run_viewer
 
     try:
@@ -241,6 +251,7 @@ def _open_viewer(params, world, scene, seed, host, port, start_mission: bool) ->
             params=params,
             mode=scene,
             seed=seed,
+            histogram=histogram,
         )
     except RuntimeError as exc:
         print(exc, file=sys.stderr)
@@ -254,7 +265,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "launch":
             params, world, scene, seed = _resolve_run(args)
             return _open_viewer(
-                params, world, scene, seed, args.host, args.port, bool(args.mission)
+                params,
+                world,
+                scene,
+                seed,
+                args.host,
+                args.port,
+                bool(args.mission),
+                histogram=bool(getattr(args, "histogram", False)),
             )
         if args.cmd == "cad":
             from embr_local_sim.cad_rover import open_session
@@ -272,6 +290,10 @@ def main(argv: list[str] | None = None) -> int:
             if args.steps is not None:
                 return _run_steps(args)
             return _run_scenarios(args)
+        if args.cmd == "rooms":
+            from embr_local_sim.two_rooms import main as rooms_main
+
+            return rooms_main()
         if args.cmd == "doctor":
             from embr_local_sim.doctor import main as doctor_main
 

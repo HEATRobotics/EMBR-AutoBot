@@ -268,9 +268,10 @@ class Simulator:
         """Labeled teleport / initial condition. Not used for locomotion."""
         mujoco.mj_resetData(self.model, self.data)
         z = float(teleport.get("z", self.params.spawn_height())) if teleport else self.params.spawn_height()
-        x = float(teleport["x"]) if teleport and "x" in teleport else 0.0
-        y = float(teleport["y"]) if teleport and "y" in teleport else 0.0
-        yaw = float(teleport["yaw"]) if teleport and "yaw" in teleport else 0.0
+        spawn = dict((self.world.extras or {}).get("spawn") or {})
+        x = float(teleport["x"]) if teleport and "x" in teleport else float(spawn.get("x", 0.0))
+        y = float(teleport["y"]) if teleport and "y" in teleport else float(spawn.get("y", 0.0))
+        yaw = float(teleport["yaw"]) if teleport and "yaw" in teleport else float(spawn.get("yaw", 0.0))
         self.spawn_pose = (x, y, yaw)
         adr = self._root_qposadr
         self.data.qpos[adr : adr + 3] = (x, y, z)

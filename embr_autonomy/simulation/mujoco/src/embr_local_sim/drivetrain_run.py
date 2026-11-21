@@ -16,6 +16,7 @@ from embr_local_sim.drivetrain import DrivetrainTwin, Feedback, SLOT_NAMES
 from embr_local_sim.motor_demo import DEMO_DURATION_S, DEMO_HZ, demo_sample
 
 DEMO_TICKS = DEMO_DURATION_S * DEMO_HZ
+LIVE_VIEW_HZ = 60
 SYNTHETIC_COUNTS_PER_REV = 4096
 
 
@@ -182,16 +183,26 @@ def run_viewer(evidence, receiver, host, port):
         server.initial_camera.look_at = (0, 0, .035)
         server.initial_camera.near = .001
         handles = add_motor_geometry(server, twin)
-        mode = "Live ESCON2 feedback" if receiver else "Synthetic replay"
-        angle_label = "the motor shaft" if twin.config.gear_ratio == 1 else "the gearbox output"
+        live = receiver is not None
+        mode = "Live ESCON2 feedback" if live else "Synthetic replay"
+        loop_period = 1 / (LIVE_VIEW_HZ if live else DEMO_HZ)
+        shaft_label = "the motor shaft" if twin.config.gear_ratio == 1 else "the gearbox output"
+        rpm_note = ""
+        if live:
+            example_rpm = 600 / twin.config.gear_ratio
+            rpm_note = (
+                "\n\nThe readouts show **measured RPM**. For example, a straight `0.1` input "
+                "at a `6000` RPM motor cap targets `600` motor RPM, equivalent to "
+                f"`{example_rpm:.2f}` RPM at {shaft_label}."
+            )
         server.gui.add_markdown(
             f"## {mode}\n\n**Gearbox:** {twin.config.gear_ratio:g}:1 · "
-            f"Angles and speeds are shown at {angle_label}. "
-            "The white stripe marks the front of the chassis."
+            f"Angles and speeds are shown at {shaft_label}. "
+            f"The white stripe marks the front of the chassis.{rpm_note}"
         )
         telemetry = [server.gui.add_markdown("") for _ in twin.config.channels]
         commands: queue.SimpleQueue[None] = queue.SimpleQueue()
-        if receiver is None:
+        if not live:
             replay = server.gui.add_button("Run / replay 12-second demo")
             replay.on_click(lambda _event: commands.put(None))
         tick = DEMO_TICKS + 1
@@ -200,7 +211,7 @@ def run_viewer(evidence, receiver, host, port):
         print(f"Four-motor twin: http://{host}:{port} — {mode}; Ctrl-C to exit.", flush=True)
         while True:
             now = time.monotonic()
-            if receiver:
+            if live:
                 receive(receiver, evidence)
             elif not commands.empty():
                 while not commands.empty():
@@ -208,11 +219,11 @@ def run_viewer(evidence, receiver, host, port):
                 session += 1
                 twin.reset()
                 tick = 0
-            if receiver is None and tick <= DEMO_TICKS:
+            if not live and tick <= DEMO_TICKS:
                 for packet in synthetic_feedback(twin, tick, f"{session:032x}"):
                     evidence.accept(packet, now)
                 tick += 1
-            if now >= next_render:
+            if live or now >= next_render:
                 with server.atomic():
                     sync_motor_geometry(twin, handles)
                     for label, channel, panel in zip(SLOT_NAMES, twin.config.channels, telemetry):
@@ -226,12 +237,12 @@ def run_viewer(evidence, receiver, host, port):
                         if state.last and state.last.error:
                             detail += "\n\n`" + state.last.error.replace("`", "'") + "`"
                         status = state.status
-                        if receiver is None and status == "Live":
+                        if not live and status == "Live":
                             status = "Replaying" if tick <= DEMO_TICKS else "Finished"
                         panel.content = (f"**{label} · node {channel.node_id} · {status}**{detail}\n\n"
                                          f"{math.degrees(joint.qpos[0]):+.1f}° · {speed}")
                 next_render = now + .04
-            time.sleep(max(0.0, now + 1 / DEMO_HZ - time.monotonic()))
+            time.sleep(max(0.0, now + loop_period - time.monotonic()))
     except KeyboardInterrupt:
         pass
     finally:

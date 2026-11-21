@@ -21,8 +21,8 @@ def test_four_named_outputs_and_fixed_chassis():
     pointer = twin.data.geom("front_left_maxon_pointer").xpos.copy()
     for node, counts, rpm in ((1, 20480, 20), (3, 40960, -40), (2, -81920, -80), (4, 61440, 60)):
         assert twin.accept(Feedback("a" * 32, 0, node, 10, .01, 1, counts, counts, 4096, rpm), 10)
-    for joint, turns, rpm in (("front_left_maxon", 5, 20), ("rear_left_maxon", 10, -40),
-                              ("front_right_maxon", 20, 80), ("rear_right_maxon", -15, -60)):
+    for joint, turns, rpm in (("front_left_maxon", -5, -20), ("rear_left_maxon", -10, 40),
+                              ("front_right_maxon", -20, -80), ("rear_right_maxon", 15, 60)):
         turns *= 988 / 20700
         rpm *= 988 / 20700
         state = twin.data.joint(joint)
@@ -32,7 +32,32 @@ def test_four_named_outputs_and_fixed_chassis():
     assert any(abs(twin.data.geom("front_left_maxon_pointer").xpos - pointer) > .001)
     custom = DrivetrainTwin(replace(twin.config, gear_ratio=10))
     assert custom.accept(twin.states[1].last, 10)
-    assert custom.data.joint("front_left_maxon").qpos[0] == pytest.approx(math.pi)
+    assert custom.data.joint("front_left_maxon").qpos[0] == pytest.approx(-math.pi)
+
+
+@pytest.mark.parametrize(("node", "joint", "forward_raw_sign"), [
+    (1, "front_left_maxon", -1),
+    (3, "rear_left_maxon", -1),
+    (2, "front_right_maxon", 1),
+    (4, "rear_right_maxon", 1),
+])
+@pytest.mark.parametrize("forward_sign", [1, -1])
+def test_wheel_feedback_follows_chassis_forward(node, joint, forward_raw_sign, forward_sign):
+    twin = DrivetrainTwin(load_drivetrain_config())
+    pointer = twin.data.geom(f"{joint}_pointer")
+    initial_pointer_z = pointer.xpos[2]
+    raw_sign = forward_raw_sign * forward_sign
+    counts = 4096 * raw_sign
+    rpm = 600 * raw_sign
+    packet = Feedback("a" * 32, 0, node, 10, .01, 1, counts, counts, 4096, rpm)
+
+    assert twin.accept(packet, 10)
+    assert twin.states[node].last.rpm == rpm
+    gearbox_rpm = twin.data.joint(joint).qvel[0] * 60 / math.tau
+    assert gearbox_rpm == pytest.approx(forward_sign * 600 * 988 / 20700)
+
+    # The pointer starts facing the chassis nose (+X), so forward rolling moves it down.
+    assert forward_sign * (pointer.xpos[2] - initial_pointer_z) < 0
 
 
 def test_expiry_ordering_and_publisher_restart():
@@ -47,7 +72,7 @@ def test_expiry_ordering_and_publisher_restart():
     twin.expire(100.51)
     assert twin.states[1].status == "Stale"
     joint = twin.data.joint("front_left_maxon")
-    assert joint.qpos[0] == pytest.approx(5 * 988 / 20700 * math.tau)
+    assert joint.qpos[0] == pytest.approx(-5 * 988 / 20700 * math.tau)
     assert joint.qvel[0] == 0
     assert twin.accept(new_publisher, 100.52)
     assert joint.qpos[0] == 0

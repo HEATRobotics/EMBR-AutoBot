@@ -13,26 +13,28 @@ embr-local-sim drivetrain --headless --out embr-sim-runs/drivetrain-synthetic
 embr-local-sim drivetrain --write-model embr-sim-runs/drivetrain.xml
 ```
 
-Open the printed browser address (normally `http://127.0.0.1:43148`) and click **Run / replay 12-second demo**. The orange, cyan, green and pink markers are front left, rear left, front right and rear right. They turn at different speeds and in different directions, stop at 4 seconds, reverse at 6 seconds and return to zero at 10 seconds. The chassis and the four reference marks remain fixed. Headless replay applies 601 observations per motor and writes paired CSV and JSON evidence when `--out` is supplied. Its 50 Hz source schedule and 25 Hz browser refresh target are software settings.
+Open the printed browser address (normally `http://127.0.0.1:43148`) and click **Run / replay 12-second demo**. The orange, cyan, green and pink markers are front left, rear left, front right and rear right. They turn at different speeds and in different directions, stop at 4 seconds, reverse at 6 seconds and return to zero at 10 seconds. The chassis and the four reference marks remain fixed. Headless replay applies 601 observations per motor and writes paired CSV and JSON evidence when `--out` is supplied. The synthetic replay uses a 50 Hz source schedule and a 25 Hz viewer update target.
 
 ## Map the four drives
 
-The default mapping follows the command-node slot order and the existing right-side polarity convention. Confirm each joint's direction and its actual controller ID on the bench.
+The default mapping follows the command-node slot order. Positive displayed gearbox RPM means forward rolling toward the marked chassis nose (+X). From the left side, forward rotation appears counterclockwise. The front-left bench motor's positive raw feedback was observed in reverse. The default flips the previous feedback polarity on all four channels, with the other three signs provisional until bench-verified. The signs apply to both position and speed. Confirm each joint's direction and controller ID on the actual assembly.
 
 | Slot | CANopen ID | MuJoCo joint | Feedback sign |
 | --- | ---: | --- | ---: |
-| Front left | 1 | `front_left_maxon` | +1 |
-| Rear left | 3 | `rear_left_maxon` | +1 |
-| Front right | 2 | `front_right_maxon` | −1 |
-| Rear right | 4 | `rear_right_maxon` | −1 |
+| Front left | 1 | `front_left_maxon` | -1 |
+| Rear left | 3 | `rear_left_maxon` | -1 |
+| Front right | 2 | `front_right_maxon` | +1 |
+| Rear right | 4 | `rear_right_maxon` | +1 |
 
 To change these values, copy the packaged `src/embr_local_sim/bundled/config/maxon_drivetrain.yaml` and pass it with `--config PATH`. Keep the four slots in table order. The default ratio is **20.951417 motor revolutions per gearbox output revolution**, from the GPX 52 UP [specification's absolute reduction of 20700/988](https://www.maxongroup.com/maxon/view/product/gear/planetary/GPX/GPX52/GPX52-2-Stufig-UP/GPX52UPKLSL21D0SQSC) (nominally 21:1). The single-motor showcase uses the same default. For each joint, output angle is `direction × relative_counts × 2π / (counts_per_rev × gear_ratio)` and output speed is `direction × measured_motor_rpm × 2π / (60 × gear_ratio)`. Configure the ratio for the actual hardware. Set `gear_ratio: 1` only when deliberately displaying motor-shaft motion.
+
+For straight keyboard input, a level of `0.1` at a `6000.0` motor-shaft RPM cap corresponds to a 600 RPM target, or about 28.64 RPM at the gearbox if the motor reaches that target. The viewer uses measured ESCON2 RPM rather than the command target. For example, an instantaneous 482 RPM reading is about 23.0 gearbox RPM in magnitude. Compare the raw `rpm` column with the change in `relative_counts` over a steady interval to investigate differences.
 
 ## Run on the bench
 
 Use the commissioned motors and CAN interface with the team's existing [ESCON2 bring-up procedure](../../../../documentation/escon2_canopen.md). Confirm the encoder settings and ratio, agree on command and stop responsibilities, and check the geometry and joint directions with Thanmay against the bench assembly.
 
-1. Start MuJoCo with `embr-local-sim drivetrain --live --out embr-sim-runs/drivetrain-live`. It listens for feedback on UDP port `43153` and initially displays **Waiting** for each motor. A separate computer can use `--feedback-bind <simulator IPv4>` on the test LAN. Keep the browser listener local.
+1. Start MuJoCo with `embr-local-sim drivetrain --live --out embr-sim-runs/drivetrain-live`. It listens for feedback on UDP port `43153` and initially displays **Waiting** for each motor. The live viewer targets 60 updates/s. It holds the latest measured angle between packets, without interpolation. CAN polling and evidence logging are independent of the viewer update rate. A separate computer can use `--feedback-bind <simulator IPv4>` on the test LAN. Keep the browser listener local.
 2. Rebuild and source the physical ROS 2 workspace so `dt_can` includes the feedback publisher. Append the parameters below to the bench team's normal `ros2 run embr_drivetrain dt_can --ros-args ...` command. For the first bench test also pass `-p enabled_motor_ids:="[1]"`. To exercise all four, start with all drives configured and omit that selection. Use only one command node on this SDO channel.
 
    ```sh

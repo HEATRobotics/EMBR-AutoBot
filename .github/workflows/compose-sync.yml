@@ -39,6 +39,40 @@ jobs:
       - name: Compare services declared across compose.*.yaml
         run: ./scripts/ci/check_compose_parity.sh
 
+
+  ros-domain-id:
+    name: Check ROS_DOMAIN_ID conflicts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check ROS_DOMAIN_ID conflicts between development and autonomy
+        run: |
+          python3 - <<'PYEOF'
+          import re, sys, glob
+          failed = False
+          for file in sorted(glob.glob("compose.*.yaml")):
+              text = open(file).read()
+              # Split on service definitions to find blocks
+              parts = re.split(r'\n(\w+):', text)
+              current_service = None
+              env_vals = {}
+              for part in parts:
+                  if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', part):
+                      current_service = part
+                  elif current_service in ('development', 'autonomy'):
+                      m = re.search(r'- ROS_DOMAIN_ID=(\S+)', part)
+                      if m:
+                          env_vals[current_service] = m.group(1).strip('"').strip("'")
+              if 'development' in env_vals and 'autonomy' in env_vals:
+                  if env_vals['development'] == env_vals['autonomy']:
+                      print(f"[FAIL] {file}: development and autonomy share ROS_DOMAIN_ID={env_vals['development']}", file=sys.stderr)
+                      failed = True
+          if failed:
+              sys.exit(1)
+          print("[PASS] No ROS_DOMAIN_ID conflicts between development and autonomy services.")
+          PYEOF
   smoke-test:
     name: Build & start services (${{ matrix.compose_file }})
     needs: parity

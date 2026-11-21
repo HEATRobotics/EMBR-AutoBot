@@ -3,7 +3,7 @@ FROM ros:jazzy-ros-base-noble
 ENV DEBIAN_FRONTEND=noninteractive \
     ROS_DISTRO=jazzy
 
-SHELL ["/bin/bash", "-c"]
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG USERNAME=embr
 ARG USER_UID=1000
@@ -18,6 +18,11 @@ ENV HOME=/home/${USERNAME} \
     MPLBACKEND=Agg
 
 # Noble replaces libgl1-mesa-glx with libgl1-mesa-dri.
+# Version pins omitted for apt packages because exact versions vary by
+# Ubuntu Noble mirror; the image is rebuilt frequently enough that
+# unpinned system packages are acceptable. ROS packages are versioned
+# by the ros-jazzy-* naming scheme.
+# hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
@@ -71,7 +76,7 @@ RUN existing_user="$(getent passwd "${USER_UID}" | cut -d: -f1 || true)" \
 
 WORKDIR ${EMBR_REPO}
 
-RUN printf '\n# Load ROS 2 and the EMBR autonomy workspace in interactive shells.\nsource /opt/ros/${ROS_DISTRO}/setup.bash\nif [ -f "${EMBR_AUTONOMY_WS}/install/setup.bash" ]; then\n    source "${EMBR_AUTONOMY_WS}/install/setup.bash"\nfi\n' >> /home/${USERNAME}/.bashrc \
+RUN printf "\\n# Load ROS 2 and the EMBR autonomy workspace in interactive shells.\\nsource /opt/ros/\${ROS_DISTRO}/setup.bash\\nif [ -f \"\${EMBR_AUTONOMY_WS}/install/setup.bash\" ]; then\\n    source \"\${EMBR_AUTONOMY_WS}/install/setup.bash\"\\nfi\\n" >> /home/${USERNAME}/.bashrc \
     && chown ${USER_UID}:${USER_GID} /home/${USERNAME}/.bashrc
 
 USER ${USERNAME}

@@ -1,0 +1,106 @@
+name: autonomy container
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - "compose.*.yaml"
+      - "docker/autonomy.Dockerfile"
+      - "docker/requirements-rl.txt"
+      - "embr_autonomy/**"
+      - "scripts/ci/autonomy_container_smoke_test.sh"
+      - "scripts/ci/check_autonomy_imports.py"
+      - "scripts/ci/check_requirements_pinned.py"
+      - "documentation/docker/autonomy*.md"
+      - ".github/workflows/autonomy.yml"
+  push:
+    branches:
+      - main
+      - 'autonomy/EMBR-20/Autonomy-Tech-Stack'
+    paths:
+      - "compose.*.yaml"
+      - "docker/autonomy.Dockerfile"
+      - "docker/requirements-rl.txt"
+      - "embr_autonomy/**"
+      - "scripts/ci/autonomy_container_smoke_test.sh"
+      - "scripts/ci/check_autonomy_imports.py"
+      - "scripts/ci/check_requirements_pinned.py"
+      - "documentation/docker/autonomy*.md"
+      - ".github/workflows/autonomy.yml"
+  workflow_dispatch:
+
+jobs:
+  hadolint:
+    name: Lint autonomy Dockerfile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lint autonomy Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/autonomy.Dockerfile
+
+      - name: Scan for API keys and secrets
+        run: |
+          set -euo pipefail
+          # Narrow, deterministic set of high-value secret patterns. Intentionally
+          # avoids fuzzy entropy matching so legitimate config never fails CI.
+          patterns='sk-|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|xoxb-[A-Za-z0-9-]+|AIza[A-Za-z0-9_-]{35}|ssh-rsa|-----BEGIN'
+          matches="$(grep -rEIn --exclude-dir=.git -e "$patterns" docker/ compose.*.yaml .env.example 2>/dev/null || true)"
+          if [ -n "${matches}" ]; then
+            echo "[FAIL] Possible API key or secret detected in docker/, compose.*.yaml, or .env.example:" >&2
+            printf '%s\n' "${matches}" >&2
+            exit 1
+          fi
+          echo "[PASS] No API keys or secrets found in docker/, compose.*.yaml, or .env.example."
+
+  autonomy:
+    name: Build and verify autonomy container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check and test requirement pinning
+        run: |
+          python3 scripts/ci/check_requirements_pinned.py --self-test
+          python3 scripts/ci/check_requirements_pinned.py docker/requirements-rl.txt
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start image build timer
+        run: echo "AUTONOMY_BUILD_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Build autonomy image with GitHub Actions cache
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/autonomy.Dockerfile
+          tags: embr-bot:autonomy
+          load: true
+          cache-from: type=gha,scope=autonomy
+          cache-to: type=gha,scope=autonomy,mode=max
+
+      - name: Report autonomy image build time and size
+        run: |
+          build_seconds=$(($(date +%s) - AUTONOMY_BUILD_STARTED))
+          image_bytes=$(docker image inspect embr-bot:autonomy --format '{{.Size}}')
+          image_size=$(numfmt --to=iec-i --suffix=B "$image_bytes")
+          {
+            echo "### Autonomy image"
+            echo "- Build time: ${build_seconds} seconds"
+            echo "- Image size: ${image_size}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare compose environment
+        run: cp .env.example .env
+
+      - name: Start and verify autonomy service in both compose files
+        run: |
+          set -o pipefail
+          bash scripts/ci/autonomy_container_smoke_test.sh | tee -a "$GITHUB_STEP_SUMMARY"

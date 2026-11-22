@@ -72,11 +72,11 @@ for service in "${SERVICES[@]}"; do
     rm -f "${up_log}"
 
     ok="false"
-    if [ -n "${READY_TEXT}" ]; then
+    if [ -z "${READY_TEXT}" ]; then
         #No ready text: pass as soon as the container is running. Otherwise, wait for the ready text to appear in the logs.
-        for_in $(seq 1 30); do
+        for _ in $(seq 1 30); do
             state="$(docker compose --profile '*' -f "${COMPOSE_FILE}" ps --format '{{.State}}' "${service}" 2>/dev/null || true)"
-            if [ "${state}" != "running" ]; then
+            if [ "${state}" = "running" ]; then
                 ok="true"
                 break
             fi

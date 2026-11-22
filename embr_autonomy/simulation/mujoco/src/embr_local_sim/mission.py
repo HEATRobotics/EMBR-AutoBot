@@ -105,6 +105,15 @@ class MissionConfig:
     route: list | None = None
     # The hot-room search stays on the spot after the probe is hot.
     hold_after_sample: bool = False
+    # Rooms 1 and 2 lock one detour around a box. Room 3 leaves the histogram
+    # to pick an open gap instead of holding that offset.
+    skip_pass: bool = False
+    # A point in the odometry frame, set once when the button is pressed.
+    # None keeps rooms 1 and 2 on their corridor heading.
+    # goal_points, when set, is the same frame: door, door, then the spot.
+    goal_x: float | None = None
+    goal_y: float | None = None
+    goal_points: tuple | None = None
 
 
 def scene_to_open_for_follow(kind: str) -> str | None:
@@ -118,6 +127,14 @@ def instruction_markdown(world: Any) -> str:
     steps = extras.get("route") or []
     if not steps:
         kind = getattr(world, "kind", "this scene")
+        if kind == "heat-track":
+            return (
+                "**Room 3.**\n\n"
+                "The orange ball is in the far corner, behind the trees, with no straight look at it. "
+                "Two openings in each row both reach it. "
+                "Low ramps are for driving over. Tall trunks are for going around. "
+                "Go to the heat source lets the histogram choose. It stops when the probe reads 70 °C."
+            )
         return (
             f"**Instructions**\n\n"
             f"Search this {kind} scene for a hotspot. "
@@ -221,6 +238,7 @@ class MissionMachine:
         self._course_yaw: float | None = None
         self._pass_yaw: float | None = None
         self._pass_clear: float | None = None
+        self._goal_i = 0
 
     def reset(self) -> None:
         self.state = "IDLE"
@@ -258,6 +276,7 @@ class MissionMachine:
         self._course_yaw = None
         self._pass_yaw = None
         self._pass_clear = None
+        self._goal_i = 0
 
     def _around_the_box(self, view: MissionView, course: float) -> float:
         """One detour around a box, then back onto the line to the heat.
@@ -266,6 +285,8 @@ class MissionMachine:
         on every tick spins the body and then yanks it back. The chart
         weights are unchanged.
         """
+        if self.config.skip_pass:
+            return course
         ranges = [float(r) for r in view.lidar_ranges]
         angles = [float(a) for a in view.lidar_angles]
         if not ranges or self._course_yaw is None:
@@ -803,6 +824,21 @@ class MissionMachine:
                 goal = forward_ang
                 self._pass_yaw = None
                 self._pass_clear = None
+            elif self.config.goal_x is not None and self.config.goal_y is not None:
+                gx = float(self.config.goal_x)
+                gy = float(self.config.goal_y)
+                points = self.config.goal_points
+                if points:
+                    idx = self._goal_i
+                    while idx < len(points) - 1 and math.hypot(
+                        float(points[idx][0]) - view.odom_x,
+                        float(points[idx][1]) - view.odom_y,
+                    ) < 1.4:
+                        idx += 1
+                    self._goal_i = idx
+                    gx, gy = float(points[idx][0]), float(points[idx][1])
+                bearing = math.atan2(gy - view.odom_y, gx - view.odom_x)
+                goal = math.atan2(math.sin(bearing - view.odom_yaw), math.cos(bearing - view.odom_yaw))
             elif self.config.hold_after_sample:
                 if self._course_yaw is None:
                     self._course_yaw = view.odom_yaw

@@ -60,9 +60,9 @@ are what pip is allowed to resolve; the pin files are the set that was run.
 Leave that terminal running. Stop with **Ctrl-C**. If the terminal is
 interactive, **q** also quits.
 
-## Two hotspot rooms
+## Three hotspot rooms
 
-One command opens both rooms in Chrome. Room 1 is a clear floor. Room 2 has two blue boxes on the way to the spot. Nothing drives until you click **Go to the heat source**, which sits above Drive. The status line says `vfh`. The body is the CAD plate. This does not train a model.
+One command opens the rooms in Chrome. Room 1 is a clear floor. Room 2 has two blue boxes on the way to the spot. Room 3 starts in one corner and hides the spot in the other, behind two rows of trunks. Each row has two openings. Nothing drives until you click **Go to the heat source**, which sits above Drive. The status line says `vfh`. The body is the CAD plate. This does not train a model.
 
 ```bash
 cd embr_autonomy/simulation/mujoco
@@ -71,7 +71,7 @@ python3.12 -m venv .venv
 .venv/bin/python -m embr_local_sim rooms
 ```
 
-Room 1 is [http://127.0.0.1:43147](http://127.0.0.1:43147). Room 2 is [http://127.0.0.1:43148](http://127.0.0.1:43148). Leave the terminal open. Ctrl-C stops both.
+Room 1 is [http://127.0.0.1:43147](http://127.0.0.1:43147). Room 2 is [http://127.0.0.1:43148](http://127.0.0.1:43148). Room 3 is [http://127.0.0.1:43149](http://127.0.0.1:43149). Leave the terminal open. Ctrl-C stops all three.
 
 ## Standalone Maxon motor twin
 

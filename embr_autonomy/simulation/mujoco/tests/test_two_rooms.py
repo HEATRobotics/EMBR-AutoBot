@@ -13,7 +13,7 @@ from embr_local_sim.model import RobotParams
 from embr_local_sim.physics import Simulator
 from embr_local_sim.planners.vfh import VfhPlanner
 from embr_local_sim.hot_room import DEFAULT_PULL, chase_camera
-from embr_local_sim.two_rooms import PORT_1, PORT_2, ROOM_1, ROOM_2, launch_command
+from embr_local_sim.two_rooms import PORT_1, PORT_2, PORT_3, ROOM_1, ROOM_2, ROOM_3, launch_command
 from embr_local_sim.worlds import prepare_world
 
 
@@ -27,12 +27,14 @@ def test_the_wide_camera_sits_farther_back_than_the_tight_one():
 def test_the_team_command_names_both_rooms_and_the_histogram():
     first = launch_command(ROOM_1, PORT_1)
     second = launch_command(ROOM_2, PORT_2)
+    third = launch_command(ROOM_3, PORT_3)
     assert "--scene" in first and ROOM_1 in first
     assert "--scene" in second and ROOM_2 in second
-    assert "--histogram" in first and "--histogram" in second
-    assert str(PORT_1) in first and str(PORT_2) in second
-    assert PORT_1 != PORT_2
-    assert "43150" not in first and "43150" not in second
+    assert "--scene" in third and ROOM_3 in third
+    assert "--histogram" in first and "--histogram" in second and "--histogram" in third
+    assert str(PORT_1) in first and str(PORT_2) in second and str(PORT_3) in third
+    assert len({PORT_1, PORT_2, PORT_3}) == 3
+    assert "43150" not in first and "43150" not in second and "43150" not in third
 
 
 def _connected(scene: str) -> Simulator:

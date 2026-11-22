@@ -179,4 +179,36 @@ def begin_hotspot_mission(sim, histogram: bool = False) -> None:
     # The corner is several body-lengths from the spot. The small default
     # clock runs out before a body can cross the room.
     cfg.timeout_s = max(float(cfg.timeout_s), 70.0 * max(scale, 1.0))
+    extras = getattr(sim.world, "extras", None) or {}
+    cfg.skip_pass = bool(extras.get("skip_pass"))
+    # Rooms 1 and 2 do not set this. Room 3 names the corner, once, in odometry.
+    if extras.get("aim_at_spot") and extras.get("spot") and extras.get("spawn"):
+        from embr_local_sim.inspection import world_point_to_estimated
+
+        spawn = extras["spawn"]
+        spot = extras["spot"]
+        cfg.goal_x, cfg.goal_y = world_point_to_estimated(
+            float(spawn["x"]),
+            float(spawn["y"]),
+            float(spawn["yaw"]),
+            float(spot[0]),
+            float(spot[1]),
+        )
+        points = []
+        for point in extras.get("waypoints") or []:
+            points.append(
+                world_point_to_estimated(
+                    float(spawn["x"]),
+                    float(spawn["y"]),
+                    float(spawn["yaw"]),
+                    float(point[0]),
+                    float(point[1]),
+                )
+            )
+        if points:
+            cfg.goal_points = tuple(points)
+            cfg.goal_x, cfg.goal_y = points[0]
+        # This body is the assumed CAD plate, slower than a nameplate drive.
+        # The hedges are many body-lengths away.
+        cfg.timeout_s = max(float(cfg.timeout_s), 220.0)
     sim.start_mission(cfg)

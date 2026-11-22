@@ -577,6 +577,10 @@ def prepare_world(mode: str, seed: int, morphology: str) -> WorldSpec:
         from embr_local_sim.yard import yard_world
 
         return yard_world(morphology, seed=seed)
+    if key in {"heat-track", "hot-room-3", "room-3"}:
+        from embr_local_sim.heat_track import heat_track_world
+
+        return heat_track_world(morphology, seed=seed)
     world = world_for_mode(mode, seed=seed)
     scale = resolve_body(morphology).layout_scale
     if scale != 1.0:

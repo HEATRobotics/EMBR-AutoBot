@@ -1,9 +1,10 @@
-"""Open both hotspot rooms for a teammate to watch locally.
+"""Open the hotspot rooms for a teammate to watch locally.
 
 Room 1 is a clear floor and one hot spot. Room 2 moves the spot and
-puts two boxes on the straight line. Both use the CAD body. The
-histogram drives. This file only starts the existing viewer twice.
-The rooms, the body, and the histogram stay where they already live.
+puts two boxes on the straight line. Room 3 hides the spot behind
+two rows of trunks, with two openings in each row. All three use the
+CAD body. The histogram drives. This file only starts the existing
+viewer. The rooms, the body, and the histogram stay where they already live.
 """
 
 from __future__ import annotations
@@ -15,8 +16,10 @@ import time
 # Scene names the viewer already knows. Ports stay off the thermal lab (43150).
 ROOM_1 = "hot-room"
 ROOM_2 = "hot-room-2"
+ROOM_3 = "heat-track"
 PORT_1 = 43147
 PORT_2 = 43148
+PORT_3 = 43149
 HOST = "127.0.0.1"
 
 
@@ -56,8 +59,8 @@ def _show_in_chrome(urls: list[str]) -> None:
 
 
 def main() -> int:
-    """Start both rooms and wait. Ctrl-C stops both."""
-    rooms = ((ROOM_1, PORT_1), (ROOM_2, PORT_2))
+    """Start the three rooms and wait. Ctrl-C stops them."""
+    rooms = ((ROOM_1, PORT_1), (ROOM_2, PORT_2), (ROOM_3, PORT_3))
     processes: list[subprocess.Popen[bytes]] = []
     try:
         for scene, port in rooms:
@@ -65,12 +68,12 @@ def main() -> int:
             processes.append(subprocess.Popen(launch_command(scene, port)))
         time.sleep(2.0)
         _show_in_chrome([room_url(port) for _scene, port in rooms])
-        print("Status line says vfh while the histogram drives. Ctrl-C stops both.")
+        print("Status line says vfh while the histogram drives. Ctrl-C stops all three.")
         while True:
             for proc in processes:
                 code = proc.poll()
                 if code is not None:
-                    print(f"A room exited ({code}). Stopping the other.", file=sys.stderr)
+                    print(f"A room exited ({code}). Stopping the others.", file=sys.stderr)
                     return code if code else 1
             time.sleep(0.4)
     except KeyboardInterrupt:

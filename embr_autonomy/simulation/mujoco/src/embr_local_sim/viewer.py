@@ -269,13 +269,15 @@ def run_viewer(
         from embr_local_sim.mission import mission_for_robot
 
         sim.start_mission(mission_for_robot(sim.params, world, 4))
-    elif start_mission and world.kind != "hot-room":
+    elif start_mission and world.kind not in ("hot-room", "heat-track"):
         sim.start_mission()
 
     _require_free_port(host, port)
     scene_key = (mode or world.kind or "").replace("_", "-")
     blocks = (world.extras or {}).get("blocks") or []
-    if scene_key == "hot-room-2" or blocks:
+    if scene_key == "heat-track":
+        window_label = "EMBR room 3"
+    elif scene_key == "hot-room-2" or blocks:
         window_label = "EMBR room 2"
     elif scene_key == "hot-room":
         window_label = "EMBR room 1"
@@ -306,7 +308,7 @@ def run_viewer(
     if world.kind == "yard" and params.morphology == "cad":
         server.initial_camera.position = (0.4, -5.4, 2.6)
         server.initial_camera.look_at = (2.8, 0.0, 0.35)
-    if world.kind == "hot-room":
+    if world.kind in ("hot-room", "heat-track"):
         from embr_local_sim.hot_room import DEFAULT_PULL, chase_camera
 
         spawn = dict((world.extras or {}).get("spawn") or {})
@@ -408,6 +410,7 @@ def run_viewer(
         "yard",
         "hot-room",
         "hot-room-2",
+        "heat-track",
     )
     if mode:
         key = mode.replace("_", "-")
@@ -426,7 +429,7 @@ def run_viewer(
         cam_dd = server.gui.add_dropdown(
             "Camera",
             options=("overview", "follow", "close"),
-            initial_value="follow" if world.kind == "hot-room" else "overview",
+            initial_value="follow" if world.kind in ("hot-room", "heat-track") else "overview",
             hint="Applies once. Then click-drag to look, or scroll to move forward and back. W A S D drive the robot.",
         )
         show_lidar = server.gui.add_checkbox("LiDAR overlay", initial_value=True)
@@ -667,7 +670,7 @@ def run_viewer(
     @btn_mission.on_click
     def _mission(_) -> None:
         sim_now = _sim()
-        if sim_now.world.kind == "hot-room":
+        if sim_now.world.kind in ("hot-room", "heat-track"):
             from embr_local_sim.hot_room import begin_hotspot_mission
 
             if sim_now.mission.state in ("SAMPLE", "RETREAT", "COMPLETE", "FAULT"):
@@ -896,7 +899,7 @@ def run_viewer(
                             tuple(server.initial_camera.look_at),
                         ),
                     )
-                if sim_now.world.kind == "hot-room" and cam == "follow" and sim_now.world.heat:
+                if sim_now.world.kind in ("hot-room", "heat-track") and cam == "follow" and sim_now.world.heat:
                     from embr_local_sim.hot_room import DEFAULT_PULL, chase_camera, marker_for
 
                     x, y, z = (float(v) for v in gt.root_pos)
@@ -1061,7 +1064,7 @@ def _add_static_world(server: Any, world: WorldSpec, params: RobotParams) -> lis
             )
         )
     for i, src in enumerate(heat):
-        if world.kind == "hot-room":
+        if world.kind in ("hot-room", "heat-track"):
             from embr_local_sim.hot_room import marker_for
 
             mx, my, mz, radius = marker_for(src)

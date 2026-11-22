@@ -30,6 +30,7 @@ SCENES = (
     "yard",
     "hot-room",
     "hot-room-2",
+    "heat-track",
 )
 
 
@@ -84,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory for scenario JSON/CSV logs (default: ./embr-sim-runs)",
     )
 
-    sub.add_parser("rooms", help="Open both hotspot rooms. Click Go to the heat source in each tab.")
+    sub.add_parser("rooms", help="Open the three hotspot rooms. Click Go to the heat source in each tab.")
     sub.add_parser("test", help="Run pytest for this package")
     sub.add_parser("doctor", help="Report Python dependencies. ROS is not required.")
     write_model = sub.add_parser("write-model", help="Write generated MJCF to a file")
@@ -142,7 +143,7 @@ def _resolve_run(args: argparse.Namespace) -> tuple[RobotParams, WorldSpec, str,
         raise ValueError(f"Unknown scene {scene!r}. Choose one of: {', '.join(SCENES)}.")
     seed = int(args.seed if args.seed is not None else cfg.get("seed", 1))
     morphology = args.morphology or str(cfg.get("morphology", morph_default))
-    if scene in ("hot-room", "hot-room-2") and not args.morphology and "morphology" not in cfg:
+    if scene in ("hot-room", "hot-room-2", "heat-track") and not args.morphology and "morphology" not in cfg:
         morphology = "cad"
     from embr_local_sim.body import KNOWN_BODIES, apply_body
 

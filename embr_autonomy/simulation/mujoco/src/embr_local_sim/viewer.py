@@ -252,6 +252,7 @@ def run_viewer(
     start_mission: bool = False,
     mode: str | None = None,
     seed: int = 2,
+    histogram: bool = False,
 ) -> None:
     import viser
 
@@ -268,11 +269,23 @@ def run_viewer(
         from embr_local_sim.mission import mission_for_robot
 
         sim.start_mission(mission_for_robot(sim.params, world, 4))
-    elif start_mission:
+    elif start_mission and world.kind not in ("hot-room", "heat-track"):
         sim.start_mission()
 
     _require_free_port(host, port)
-    server = viser.ViserServer(host=host, port=port, label="EMBR MuJoCo")
+    scene_key = (mode or world.kind or "").replace("_", "-")
+    blocks = (world.extras or {}).get("blocks") or []
+    if scene_key == "heat-track":
+        window_label = "EMBR room 3"
+    elif scene_key == "hot-room-2" or blocks:
+        window_label = "EMBR room 2"
+    elif scene_key == "hot-room":
+        window_label = "EMBR room 1"
+    else:
+        window_label = "EMBR MuJoCo"
+    if histogram and window_label.startswith("EMBR room"):
+        window_label += " histogram"
+    server = viser.ViserServer(host=host, port=port, label=window_label)
     try:
         server.gui.configure_theme(
             control_width="small",
@@ -295,6 +308,18 @@ def run_viewer(
     if world.kind == "yard" and params.morphology == "cad":
         server.initial_camera.position = (0.4, -5.4, 2.6)
         server.initial_camera.look_at = (2.8, 0.0, 0.35)
+    if world.kind in ("hot-room", "heat-track"):
+        from embr_local_sim.hot_room import DEFAULT_PULL, chase_camera
+
+        spawn = dict((world.extras or {}).get("spawn") or {})
+        server.initial_camera.position, server.initial_camera.look_at = chase_camera(
+            float(spawn.get("x", 0.0)),
+            float(spawn.get("y", 0.0)),
+            0.12,
+            float(spawn.get("yaw", 0.0)),
+            float((world.extras or {}).get("layout_scale", 1.0)),
+            distance_scale=DEFAULT_PULL,
+        )
 
     grid = body.grid_m
     server.scene.add_grid(
@@ -315,6 +340,7 @@ def run_viewer(
         "extra": {},
         "world_nodes": [],
         "odom_trace": [],
+        "histogram": histogram,
     }
     ctx["world_nodes"] = _add_static_world(server, world, params)
     chassis_handle, wheel_handles, extra_handles = _add_robot_geometry(server, params, sim)
@@ -325,6 +351,7 @@ def run_viewer(
     fidelity = _fidelity_line(params)
     server.gui.add_markdown(f"**{fidelity}**")
     telemetry = server.gui.add_markdown("Connecting…")
+    btn_mission = server.gui.add_button("Go to the heat source", color="orange")
     with server.gui.add_folder("Drive"):
         server.gui.add_markdown(
             "**W** forward&nbsp;&nbsp;**S** back\n\n"
@@ -381,6 +408,9 @@ def run_viewer(
         "stones",
         "rough",
         "yard",
+        "hot-room",
+        "hot-room-2",
+        "heat-track",
     )
     if mode:
         key = mode.replace("_", "-")
@@ -399,7 +429,7 @@ def run_viewer(
         cam_dd = server.gui.add_dropdown(
             "Camera",
             options=("overview", "follow", "close"),
-            initial_value="overview",
+            initial_value="follow" if world.kind in ("hot-room", "heat-track") else "overview",
             hint="Applies once. Then click-drag to look, or scroll to move forward and back. W A S D drive the robot.",
         )
         show_lidar = server.gui.add_checkbox("LiDAR overlay", initial_value=True)
@@ -418,7 +448,6 @@ def run_viewer(
     with server.gui.add_folder("Mission / autonomy", expand_by_default=True):
         instructions = server.gui.add_markdown(instruction_markdown(world))
         ctx["instructions"] = instructions
-        btn_mission = server.gui.add_button("L4 follow instructions", color="orange")
         btn_goto = server.gui.add_button("L2/L3 goto odom target")
         btn_search = server.gui.add_button("L5 bounded search")
         btn_cancel = server.gui.add_button("Operator STOP / FAULT", color="red")
@@ -640,6 +669,16 @@ def run_viewer(
 
     @btn_mission.on_click
     def _mission(_) -> None:
+        sim_now = _sim()
+        if sim_now.world.kind in ("hot-room", "heat-track"):
+            from embr_local_sim.hot_room import begin_hotspot_mission
+
+            if sim_now.mission.state in ("SAMPLE", "RETREAT", "COMPLETE", "FAULT"):
+                sim_now.request_reset()
+                ctx["odom_trace"] = []
+                _clear_trace_visual()
+            begin_hotspot_mission(sim_now, histogram=bool(ctx.get("histogram")))
+            return
         from embr_local_sim.mission import scene_to_open_for_follow
 
         target = scene_to_open_for_follow(str(ctx["world"].kind))
@@ -860,6 +899,40 @@ def run_viewer(
                             tuple(server.initial_camera.look_at),
                         ),
                     )
+                if sim_now.world.kind in ("hot-room", "heat-track") and cam == "follow" and sim_now.world.heat:
+                    from embr_local_sim.hot_room import DEFAULT_PULL, chase_camera, marker_for
+
+                    x, y, z = (float(v) for v in gt.root_pos)
+                    scale = float((sim_now.world.extras or {}).get("layout_scale", 1.0))
+                    span = math.sqrt(max(scale, 1.0))
+                    base = math.hypot(3.0 * span, 1.9 * span)
+                    pulls = ctx.setdefault("hot_pull", {})
+                    written = ctx.setdefault("hot_written", {})
+                    mx, my, mz, _radius = marker_for(sim_now.world.heat[0])
+                    near_ball = math.hypot(x - mx, y - my) < 2.2 * span
+                    for client in server.get_clients().values():
+                        key = id(client)
+                        pull = float(pulls.get(key, DEFAULT_PULL))
+                        current = client.camera.position
+                        last = written.get(key)
+                        if current is not None and last is not None and base > 1e-6:
+                            dx = float(current[0]) - last[0]
+                            dy = float(current[1]) - last[1]
+                            dz = float(current[2]) - last[2]
+                            if dx * dx + dy * dy + dz * dz > 0.15:
+                                dist = math.hypot(
+                                    float(current[0]) - x,
+                                    float(current[1]) - y,
+                                    float(current[2]) - z,
+                                )
+                                pull = max(0.7, min(8.0, dist / base))
+                                pulls[key] = pull
+                        cam_pos, look = chase_camera(x, y, z, float(gt.yaw), scale, distance_scale=pull)
+                        if near_ball:
+                            look = ((x + mx) * 0.5, (y + my) * 0.5, max(look[2], mz))
+                        client.camera.position = cam_pos
+                        client.camera.look_at = look
+                        written[key] = cam_pos
                 telemetry.content = _telemetry_markdown(
                     gt, obs, n_clients["n"], sim_now, show_gt=bool(show_gt.value)
                 )
@@ -977,7 +1050,7 @@ def _add_static_world(server: Any, world: WorldSpec, params: RobotParams) -> lis
                     float(stone.get("y", 0.0)),
                     float(stone.get("size", (0, 0, 0.03))[2]),
                 ),
-                color=(110, 100, 85),
+                color=(36, 96, 190) if stone.get("role") == "block" else (110, 100, 85),
             )
         )
     for i, log in enumerate(logs):
@@ -991,6 +1064,20 @@ def _add_static_world(server: Any, world: WorldSpec, params: RobotParams) -> lis
             )
         )
     for i, src in enumerate(heat):
+        if world.kind in ("hot-room", "heat-track"):
+            from embr_local_sim.hot_room import marker_for
+
+            mx, my, mz, radius = marker_for(src)
+            handles.append(
+                server.scene.add_icosphere(
+                    f"/world/heat_{i}",
+                    radius=radius,
+                    position=(mx, my, mz),
+                    color=(255, 120, 20),
+                    opacity=0.92,
+                )
+            )
+            continue
         kind = str(src.get("kind", "smolder"))
         target = src.get("role") == "inspection_target"
         color = (255, 90, 20) if kind != "flame" else (255, 160, 40)

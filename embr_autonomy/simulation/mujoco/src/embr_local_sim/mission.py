@@ -103,6 +103,17 @@ class MissionConfig:
     oracle_exclusion: list | None = None
     # Ordered instructions. Each step is x, y, action (drive, sample, return), name.
     route: list | None = None
+    # The hot-room search stays on the spot after the probe is hot.
+    hold_after_sample: bool = False
+    # Rooms 1 and 2 lock one detour around a box. Room 3 leaves the histogram
+    # to pick an open gap instead of holding that offset.
+    skip_pass: bool = False
+    # A point in the odometry frame, set once when the button is pressed.
+    # None keeps rooms 1 and 2 on their corridor heading.
+    # goal_points, when set, is the same frame: door, door, then the spot.
+    goal_x: float | None = None
+    goal_y: float | None = None
+    goal_points: tuple | None = None
 
 
 def scene_to_open_for_follow(kind: str) -> str | None:
@@ -116,6 +127,14 @@ def instruction_markdown(world: Any) -> str:
     steps = extras.get("route") or []
     if not steps:
         kind = getattr(world, "kind", "this scene")
+        if kind == "heat-track":
+            return (
+                "**Room 3.**\n\n"
+                "The orange ball is in the far corner, behind the trees, with no straight look at it. "
+                "Two openings in each row both reach it. "
+                "Low ramps are for driving over. Tall trunks are for going around. "
+                "Go to the heat source lets the histogram choose. It stops when the probe reads 70 °C."
+            )
         return (
             f"**Instructions**\n\n"
             f"Search this {kind} scene for a hotspot. "
@@ -216,6 +235,10 @@ class MissionMachine:
         self._backup_turn = 0.0
         self._avoid_until: float | None = None
         self._avoid_heading = 0.0
+        self._course_yaw: float | None = None
+        self._pass_yaw: float | None = None
+        self._pass_clear: float | None = None
+        self._goal_i = 0
 
     def reset(self) -> None:
         self.state = "IDLE"
@@ -250,6 +273,61 @@ class MissionMachine:
         self._backup_turn = 0.0
         self._avoid_until = None
         self._avoid_heading = 0.0
+        self._course_yaw = None
+        self._pass_yaw = None
+        self._pass_clear = None
+        self._goal_i = 0
+
+    def _around_the_box(self, view: MissionView, course: float) -> float:
+        """One detour around a box, then back onto the line to the heat.
+
+        The detour is a fixed direction in the world. Asking for "more left"
+        on every tick spins the body and then yanks it back. The chart
+        weights are unchanged.
+        """
+        if self.config.skip_pass:
+            return course
+        ranges = [float(r) for r in view.lidar_ranges]
+        angles = [float(a) for a in view.lidar_angles]
+        if not ranges or self._course_yaw is None:
+            return course
+        fan = max(ranges)
+        near = 1.40 if fan <= 2.5 else 4.0
+
+        def wrap(rad: float) -> float:
+            return math.atan2(math.sin(rad), math.cos(rad))
+
+        def cone(heading: float, half: float) -> float:
+            best = float(view.lidar_max_range)
+            for ang, rng in zip(angles, ranges):
+                if not math.isfinite(rng) or rng <= 0.0:
+                    continue
+                if abs(wrap(ang - heading)) <= half:
+                    best = min(best, rng)
+            return best
+
+        def toward(world_yaw: float) -> float:
+            return wrap(world_yaw - view.odom_yaw)
+
+        nose = cone(0.0, 0.45)
+        if self._pass_yaw is None and nose <= near:
+            left = cone(0.90, 0.40)
+            right = cone(-0.90, 0.40)
+            side = 0.80 if left >= right else -0.80
+            self._pass_yaw = wrap(self._course_yaw + side)
+            self._pass_clear = None
+        if self._pass_yaw is None:
+            return course
+        if cone(course, 0.50) > near + 1.5:
+            if self._pass_clear is None:
+                self._pass_clear = view.sim_time
+            elif view.sim_time - self._pass_clear >= 1.0:
+                self._pass_yaw = None
+                self._pass_clear = None
+                return course
+        else:
+            self._pass_clear = None
+        return toward(self._pass_yaw)
 
     def _look_around(self, view: MissionView, preferred: float, wall: float) -> TeleCmd | None:
         """A command that turns toward a longer lidar gap, or None to keep driving."""
@@ -740,8 +818,35 @@ class MissionMachine:
             _idx, forward_c, forward_ang = self._hottest(view)
             if peak >= forward_c + 12.0 and peak >= view.ambient_c + 8.0:
                 goal = aim
+                self._pass_yaw = None
+                self._pass_clear = None
             elif forward_c >= view.ambient_c + 8.0:
                 goal = forward_ang
+                self._pass_yaw = None
+                self._pass_clear = None
+            elif self.config.goal_x is not None and self.config.goal_y is not None:
+                gx = float(self.config.goal_x)
+                gy = float(self.config.goal_y)
+                points = self.config.goal_points
+                if points:
+                    idx = self._goal_i
+                    while idx < len(points) - 1 and math.hypot(
+                        float(points[idx][0]) - view.odom_x,
+                        float(points[idx][1]) - view.odom_y,
+                    ) < 1.4:
+                        idx += 1
+                    self._goal_i = idx
+                    gx, gy = float(points[idx][0]), float(points[idx][1])
+                bearing = math.atan2(gy - view.odom_y, gx - view.odom_x)
+                goal = math.atan2(math.sin(bearing - view.odom_yaw), math.cos(bearing - view.odom_yaw))
+            elif self.config.hold_after_sample:
+                if self._course_yaw is None:
+                    self._course_yaw = view.odom_yaw
+                course = math.atan2(
+                    math.sin(self._course_yaw - view.odom_yaw),
+                    math.cos(self._course_yaw - view.odom_yaw),
+                )
+                goal = self._around_the_box(view, course)
             else:
                 goal = 0.0
             steered = self._vfh(view, wall, goal, t)
@@ -832,6 +937,9 @@ class MissionMachine:
                 if self.config.route and self.route_i + 1 < len(self.config.route):
                     self.route_i += 1
                     self._enter("ROUTE", t, self._route_name())
+                elif cfg.hold_after_sample:
+                    self._enter("COMPLETE", t, "sampled")
+                    velocity = 0.0
                 else:
                     self._enter("RETREAT", t, "sampled")
 

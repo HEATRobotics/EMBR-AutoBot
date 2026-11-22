@@ -8,6 +8,7 @@ Subclass `LearnedSteerPlanner` and implement `act`, then pass an instance as
 
 - `ctx.view.lidar_ranges`, `ctx.view.lidar_angles` (radians, positive is left)
 - `ctx.view.thermal_c`, `ctx.view.thermal_angles`
+- `ctx.view.lepton_celsius` when `--lepton` is streaming (120×160 °C, or None)
 - `ctx.view.probe_c`, `ctx.view.odom_x`, `ctx.view.odom_y`, `ctx.view.odom_yaw`
 - `ctx.goal_heading` (radians, positive is left, zero is straight ahead)
 

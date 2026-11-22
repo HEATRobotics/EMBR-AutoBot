@@ -128,6 +128,7 @@ Reset remains the only root-pose write.
 - Motor torque, current, and speed limits measured on this robot.
 - Probe travel (leadscrew pitch, carriage stroke).
 - Obstacle and surface measurements from a hardware trial.
+- A saved PureThermal 3 Y16 frame and a blackbody temperature for the Lepton. `docs/lepton.md` records the conversion and why those checks were not run.
 
 ## Hardware protocol (not run)
 
@@ -151,4 +152,5 @@ assumed masses.
 - https://engineering.ok.ubc.ca/2024/05/29/soe-feature-learn-more-about-the-heat-robotics-team-and-their-award-winning-embr-project/
 
 Local pins already in this package: MuJoCo 3.15.0, Viser 1.1.1, NumPy 2.5.4.
-No new dependency was added.
+`opencv-python` is an optional extra (`pip install -e ".[lepton]"`). It is not
+in `requirements.txt`, because that file is the set run without a camera.

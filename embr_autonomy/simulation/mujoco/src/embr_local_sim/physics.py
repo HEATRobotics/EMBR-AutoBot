@@ -15,6 +15,7 @@ import numpy as np
 from embr_local_sim.articulated import ART_JOINTS
 from embr_local_sim.controls import VelocityController
 from embr_local_sim.model import RobotParams, WorldSpec, build_mjcf
+from embr_local_sim.lepton import LeptonCapture
 from embr_local_sim.inspection import InspectionConfig, InspectionMachine
 from embr_local_sim.mission import MissionConfig, MissionMachine, MissionView
 from embr_local_sim.observation import ControllerOutput, RobotObservation
@@ -125,6 +126,8 @@ class Simulator:
         params: RobotParams | None = None,
         world: WorldSpec | None = None,
         seed: int = 0,
+        lepton: LeptonCapture | None = None,
+        lepton_drive_bins: bool = False,
     ) -> None:
         from embr_local_sim.body import apply_body, pod_drive
 
@@ -136,6 +139,10 @@ class Simulator:
         self.data = mujoco.MjData(self.model)
         self.controller = VelocityController(self.params)
         self.sensors = SensorModel(self.params, seed=seed)
+        # Owned by the caller. This object does not start or stop the USB thread,
+        # so a scene rebuild can keep the same camera.
+        self.lepton = lepton
+        self.lepton_drive_bins = bool(lepton_drive_bins)
         self.helper = DrivetrainHelperSim(self.params)
         self.gate = CommandGate()
         self.mission = MissionMachine()
@@ -564,7 +571,15 @@ class Simulator:
         )
         if integrate_thermal:
             self.thermal.step_lumps(gt.root_pos, gt.sim_time, dt=float(self.model.opt.timestep))
-        obs = self.sensors.observe(gt, model=self.model, data=self.data, thermal=self.thermal)
+        lepton_frame = self.lepton.latest() if self.lepton is not None else None
+        obs = self.sensors.observe(
+            gt,
+            model=self.model,
+            data=self.data,
+            thermal=self.thermal,
+            lepton=lepton_frame,
+            lepton_drive_bins=self.lepton_drive_bins,
+        )
         obs.probe_kind = "hinge_boom_local_proposal"
         obs.probe_state = self.probe.state
         obs.probe_angle = float(self.data.qpos[self._probe_qpos])
@@ -623,6 +638,13 @@ class Simulator:
             watchdog_active=gt.watchdog_active,
             lidar_max_range=obs.lidar_max_range,
             ambient_c=obs.ambient_c,
+            lepton_valid=obs.lepton_valid,
+            lepton_celsius_valid=obs.lepton_celsius_valid,
+            lepton_reason=obs.lepton_reason,
+            lepton_min_c=obs.lepton_min_c,
+            lepton_max_c=obs.lepton_max_c,
+            lepton_mean_c=obs.lepton_mean_c,
+            lepton_celsius=obs.lepton_celsius,
             roll_rad=self._roll_pitch(np.array(obs.imu_quat_wxyz, dtype=np.float64))[0],
             pitch_rad=self._roll_pitch(np.array(obs.imu_quat_wxyz, dtype=np.float64))[1],
             imu_valid=True,

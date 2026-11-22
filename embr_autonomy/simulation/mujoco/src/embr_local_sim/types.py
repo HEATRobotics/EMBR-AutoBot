@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Mapping
+from typing import Any, Mapping
 
 
 WHEEL_JOINTS: tuple[str, ...] = (
@@ -112,6 +112,17 @@ class SensorObservations:
     ambient_c: float = 20.0
     lump_c: dict[str, float] = field(default_factory=dict)
     lump_rating_c: dict[str, str] = field(default_factory=dict)
+    # Live PureThermal 3 frame. Empty unless --lepton is running.
+    # The image is the laptop camera, not a MuJoCo render of the scene.
+    lepton_valid: bool = False
+    lepton_celsius_valid: bool = False
+    lepton_reason: str = "camera not attached"
+    lepton_sequence: int = 0
+    lepton_stamp_wall: float = 0.0
+    lepton_min_c: float | None = None
+    lepton_max_c: float | None = None
+    lepton_mean_c: float | None = None
+    lepton_celsius: Any = None
 
 
 def mapping_finite(values: Mapping[str, float]) -> bool:

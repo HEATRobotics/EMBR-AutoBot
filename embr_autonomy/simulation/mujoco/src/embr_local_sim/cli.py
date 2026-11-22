@@ -51,6 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Start the optional sensor-driven mission after launch. This is a demonstration, not field autonomy.",
     )
+    _add_lepton_flags(launch)
 
     cad = sub.add_parser(
         "cad",
@@ -59,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     cad.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
     cad.add_argument("--port", type=int, default=43147, help="Browser server port (default: 43147)")
     cad.add_argument("--seed", type=int, default=None, help="Yard seed (default: 1)")
+    _add_lepton_flags(cad)
 
     headless = sub.add_parser("headless", help="Run physics without a viewer or browser")
     _add_common(headless)
@@ -82,6 +84,31 @@ def build_parser() -> argparse.ArgumentParser:
     write_model = sub.add_parser("write-model", help="Write generated MJCF to a file")
     write_model.add_argument("--out", default=None, help="Output XML path")
     return parser
+
+
+def _add_lepton_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--lepton",
+        action="store_true",
+        help=(
+            "Read a PureThermal 3 / Lepton Y16 stream on a side thread. "
+            "The viewer still starts if the camera is unplugged or opencv is missing."
+        ),
+    )
+    parser.add_argument(
+        "--lepton-index",
+        type=int,
+        default=0,
+        help="UVC camera index for --lepton (default: 0).",
+    )
+    parser.add_argument(
+        "--lepton-drive",
+        action="store_true",
+        help=(
+            "Replace the synthetic thermal bins with column maxima from the live "
+            "Celsius image. Off by default: the laptop camera is not on the robot."
+        ),
+    )
 
 
 def _add_common(parser: argparse.ArgumentParser) -> None:
@@ -222,7 +249,33 @@ def _run_scenarios(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
-def _open_viewer(params, world, scene, seed, host, port, start_mission: bool) -> int:
+def _start_lepton(args: argparse.Namespace):
+    if not getattr(args, "lepton", False):
+        return None
+    from embr_local_sim.lepton import LeptonCapture, purethermal_opener
+
+    capture = LeptonCapture(opener=purethermal_opener(int(args.lepton_index)))
+    capture.start()
+    print(
+        "Lepton: capture thread started for PureThermal 3 "
+        f"(UVC index {int(args.lepton_index)}). "
+        "The simulation continues if the camera is absent. "
+        f"Drive bins from the image: {bool(args.lepton_drive)}."
+    )
+    return capture
+
+
+def _open_viewer(
+    params,
+    world,
+    scene,
+    seed,
+    host,
+    port,
+    start_mission: bool,
+    lepton=None,
+    lepton_drive: bool = False,
+) -> int:
     from embr_local_sim.viewer import run_viewer
 
     try:
@@ -234,10 +287,15 @@ def _open_viewer(params, world, scene, seed, host, port, start_mission: bool) ->
             params=params,
             mode=scene,
             seed=seed,
+            lepton=lepton,
+            lepton_drive_bins=lepton_drive,
         )
     except RuntimeError as exc:
         print(exc, file=sys.stderr)
         return 1
+    finally:
+        if lepton is not None:
+            lepton.stop()
     return 0
 
 
@@ -246,14 +304,34 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.cmd == "launch":
             params, world, scene, seed = _resolve_run(args)
+            lepton = _start_lepton(args)
             return _open_viewer(
-                params, world, scene, seed, args.host, args.port, bool(args.mission)
+                params,
+                world,
+                scene,
+                seed,
+                args.host,
+                args.port,
+                bool(args.mission),
+                lepton=lepton,
+                lepton_drive=bool(args.lepton_drive),
             )
         if args.cmd == "cad":
             from embr_local_sim.cad_rover import open_session
 
             params, world, scene, seed = open_session(args.seed)
-            return _open_viewer(params, world, scene, seed, args.host, args.port, True)
+            lepton = _start_lepton(args)
+            return _open_viewer(
+                params,
+                world,
+                scene,
+                seed,
+                args.host,
+                args.port,
+                True,
+                lepton=lepton,
+                lepton_drive=bool(args.lepton_drive),
+            )
         if args.cmd == "headless":
             selected = sum(bool(x) for x in (args.steps, args.scenario, args.all))
             if selected != 1:

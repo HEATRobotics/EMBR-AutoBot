@@ -39,6 +39,13 @@ def doctor() -> dict[str, Any]:
         if not ok:
             info["ok"] = False
             info["blockers"].append(f"missing Python package {name}: {detail}")
+    cv_ok, cv_detail = _try_import("cv2")
+    checks["cv2"] = {"ok": cv_ok, "detail": cv_detail, "optional": "lepton"}
+    if not cv_ok:
+        info["notes"].append(
+            "opencv is optional. The viewer launches without it. "
+            "embr-local-sim launch --lepton needs: python -m pip install -e \".[lepton]\"."
+        )
     pytest_ok, pytest_detail = _try_import("pytest")
     checks["pytest"] = {"ok": pytest_ok, "detail": pytest_detail, "optional": "test"}
     if not pytest_ok:

@@ -48,6 +48,9 @@ ros adapter (future)             Not running. embr_local_sim/ros_adapter.py
                                  records topic names and does not import rclpy to publish.
 hardware                         CANopen and motor drivers stay in the ROS packages.
                                  The MuJoCo launcher does not open them.
+lepton (optional)                PureThermal 3 on the operator laptop, read
+                                 inside embr_local_sim. Not a ROS topic.
+                                 The viewer starts if the camera is absent.
 ```
 
 The proxy in `embr_autonomy/simulation/mujoco` does not replace the ROS workspace and does

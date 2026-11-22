@@ -243,6 +243,58 @@ def _require_free_port(host: str, port: int) -> None:
         sock.close()
 
 
+def _lepton_status_markdown(capture: Any) -> str:
+    if capture is None:
+        return (
+            "**Lepton** off. `embr-local-sim launch --lepton` reads a PureThermal 3. "
+            "The scene starts without it."
+        )
+    frame = capture.latest()
+    return _lepton_frame_markdown(frame)
+
+
+def _lepton_frame_markdown(frame: Any) -> str:
+    if frame.celsius_valid and frame.mean_c is not None:
+        temp = f"min `{frame.min_c:.1f}` mean `{frame.mean_c:.1f}` max `{frame.max_c:.1f}` °C"
+    else:
+        temp = "Celsius unavailable"
+    reason = frame.reason or "streaming"
+    return (
+        f"**Lepton** `{frame.source}` seq `{frame.sequence}` · {temp}\n\n"
+        f"{reason}"
+    )
+
+
+def _add_lepton_image(server: Any) -> Any:
+    blank = np.zeros((120, 160, 3), dtype=np.uint8)
+    adder = getattr(server.gui, "add_image", None)
+    if adder is None:
+        return None
+    try:
+        return adder(blank, label="Lepton")
+    except TypeError:
+        try:
+            return adder(image=blank, label="Lepton")
+        except Exception:
+            return None
+    except Exception:
+        return None
+
+
+def _sync_lepton_panel(status: Any, image_handle: Any, sim: Simulator) -> None:
+    capture = sim.lepton
+    if capture is None:
+        return
+    frame = capture.latest()
+    status.content = _lepton_frame_markdown(frame)
+    if image_handle is None or frame.display_rgb is None or frame.display_rgb.size == 0:
+        return
+    try:
+        image_handle.image = frame.display_rgb
+    except Exception:
+        pass
+
+
 def run_viewer(
     *,
     host: str = "127.0.0.1",
@@ -252,6 +304,8 @@ def run_viewer(
     start_mission: bool = False,
     mode: str | None = None,
     seed: int = 2,
+    lepton: Any = None,
+    lepton_drive_bins: bool = False,
 ) -> None:
     import viser
 
@@ -261,7 +315,13 @@ def run_viewer(
     if mode:
         world = prepare_world(mode, seed, params.morphology)
     world = world or WorldSpec(kind="flat")
-    sim = Simulator(params=params, world=world, seed=seed)
+    sim = Simulator(
+        params=params,
+        world=world,
+        seed=seed,
+        lepton=lepton,
+        lepton_drive_bins=lepton_drive_bins,
+    )
     sim.reset()
     sim.start_background()
     if world.kind in ("rough", "yard"):
@@ -325,6 +385,8 @@ def run_viewer(
     fidelity = _fidelity_line(params)
     server.gui.add_markdown(f"**{fidelity}**")
     telemetry = server.gui.add_markdown("Connecting…")
+    lepton_status = server.gui.add_markdown(_lepton_status_markdown(lepton))
+    lepton_image = _add_lepton_image(server)
     with server.gui.add_folder("Drive"):
         server.gui.add_markdown(
             "**W** forward&nbsp;&nbsp;**S** back\n\n"
@@ -575,7 +637,13 @@ def run_viewer(
                 from embr_local_sim.worlds import scale_world
 
                 world_new = scale_world(world_new, scale)
-        sim_new = Simulator(params=params_new, world=world_new, seed=use_seed)
+        sim_new = Simulator(
+            params=params_new,
+            world=world_new,
+            seed=use_seed,
+            lepton=old.lepton,
+            lepton_drive_bins=old.lepton_drive_bins,
+        )
         sim_new.reset(teleport)
         sim_new.start_background()
         ctx["sim"] = sim_new
@@ -819,6 +887,10 @@ def run_viewer(
     print("  This Python process must keep running. Viser is not a static website.")
     print("  Stop with Ctrl-C. If this terminal is interactive, q also quits.")
     print("  Browser W/A/S/D drive the robot. Click-drag looks around. Scroll moves the camera forward and back.")
+    if lepton is None:
+        print("  Lepton: off. Pass --lepton to read a PureThermal 3. The scene does not require it.")
+    else:
+        print("  Lepton: capture thread is running. A missing camera leaves the synthetic thermal field in place.")
     cam_follow: dict[int, dict[str, Any]] = {}
     try:
         last_render = 0.0
@@ -863,6 +935,7 @@ def run_viewer(
                 telemetry.content = _telemetry_markdown(
                     gt, obs, n_clients["n"], sim_now, show_gt=bool(show_gt.value)
                 )
+                _sync_lepton_panel(lepton_status, lepton_image, sim_now)
                 route = (sim_now.world.extras or {}).get("route")
                 if route and sim_now.mission.state == "COMPLETE":
                     when = ctx.get("rerun_at")

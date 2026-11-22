@@ -1,6 +1,8 @@
 """World-backed temperature field and lumped chassis heating.
 
 Not FDS, not a radiometric FLIR, not a certified withstand model.
+A live PureThermal 3 frame is a separate path (`lepton.py`). It does not
+replace this field unless the simulator is constructed with lepton_drive_bins.
 Peak temperatures in YAML are ASSUMED. Missing component ratings stay UNKNOWN;
 tests must not fail a made-up °C limit.
 """

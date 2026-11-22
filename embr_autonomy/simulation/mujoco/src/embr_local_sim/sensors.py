@@ -6,6 +6,7 @@ import math
 
 import numpy as np
 
+from embr_local_sim.lepton import LeptonFrame, column_max_celsius
 from embr_local_sim.lidar import LidarFan
 from embr_local_sim.model import RobotParams
 from embr_local_sim.thermal import ThermalField
@@ -88,6 +89,8 @@ class SensorModel:
         model=None,
         data=None,
         thermal: ThermalField | None = None,
+        lepton: LeptonFrame | None = None,
+        lepton_drive_bins: bool = False,
     ) -> SensorObservations:
         enc = {name: self._quantize(gt.joint_pos[name]) for name in WHEEL_JOINTS}
         enc_vel = {name: float(gt.joint_vel[name]) for name in WHEEL_JOINTS}
@@ -154,6 +157,30 @@ class SensorModel:
             lidar_scan["stamp_sim"] = self._lidar_frozen_stamp
 
         thermal_c, thermal_ang = self._thermal_bins(gt, thermal, lidar_scan)
+        lepton_c = None
+        lepton_valid = False
+        lepton_celsius_valid = False
+        lepton_reason = "camera not attached"
+        lepton_sequence = 0
+        lepton_stamp = 0.0
+        lepton_min = None
+        lepton_max = None
+        lepton_mean = None
+        if lepton is not None:
+            lepton_valid = bool(lepton.valid)
+            lepton_celsius_valid = bool(lepton.celsius_valid and lepton.celsius is not None)
+            lepton_reason = lepton.reason
+            lepton_sequence = int(lepton.sequence)
+            lepton_stamp = float(lepton.stamp_wall)
+            lepton_min = lepton.min_c
+            lepton_max = lepton.max_c
+            lepton_mean = lepton.mean_c
+            if lepton_celsius_valid:
+                lepton_c = np.array(lepton.celsius, dtype=np.float32, copy=True)
+                if lepton_drive_bins:
+                    driven = column_max_celsius(lepton_c, len(self.thermal_angles))
+                    if all(math.isfinite(v) for v in driven):
+                        thermal_c = driven
         ambient = thermal.ambient_c if thermal is not None else 20.0
         probe_c = ambient
         probe_stamp = gt.sim_time
@@ -196,6 +223,15 @@ class SensorModel:
             ambient_c=ambient,
             lump_c={k: float(v["temperature_c"]) for k, v in lumps.items()},
             lump_rating_c={k: str(v["rating_c"]) for k, v in lumps.items()},
+            lepton_valid=lepton_valid,
+            lepton_celsius_valid=lepton_celsius_valid,
+            lepton_reason=lepton_reason,
+            lepton_sequence=lepton_sequence,
+            lepton_stamp_wall=lepton_stamp,
+            lepton_min_c=lepton_min,
+            lepton_max_c=lepton_max,
+            lepton_mean_c=lepton_mean,
+            lepton_celsius=lepton_c,
         )
 
 

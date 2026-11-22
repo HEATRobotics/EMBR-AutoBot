@@ -3,6 +3,9 @@
 States: IDLE, SEARCH, APPROACH, SAMPLE, RETREAT, COMPLETE, FAULT.
 
 The controller sees MissionView only (odom + lidar + thermal + probe).
+A live Lepton image can be attached. The state machine keeps using thermal_c.
+That list stays the synthetic field unless the simulator was started with
+lepton_drive_bins.
 Ground-truth pose is not a field on that view. Probe is a **one-DOF hinge boom**
 (local proposal), not a track arm and not a capstan.
 """
@@ -11,7 +14,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any  # lepton_celsius is a numpy image or None
 
 from embr_local_sim.policy import ClassicalLocalPolicy, LocalPolicy
 from embr_local_sim.tele_cmd import TeleCmd
@@ -57,6 +60,14 @@ class MissionView:
     roll_rad: float = 0.0
     pitch_rad: float = 0.0
     imu_valid: bool = True
+    # Live laptop camera. Not the synthetic Gaussian field, and not robot-mounted.
+    lepton_valid: bool = False
+    lepton_celsius_valid: bool = False
+    lepton_reason: str = "camera not attached"
+    lepton_min_c: float | None = None
+    lepton_max_c: float | None = None
+    lepton_mean_c: float | None = None
+    lepton_celsius: Any = None
 
 
 @dataclass

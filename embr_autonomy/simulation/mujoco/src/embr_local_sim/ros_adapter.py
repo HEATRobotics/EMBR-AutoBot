@@ -17,6 +17,8 @@ Intended mapping once a real adapter exists
 - `tf` — one publisher owns `odom` → `root`.
 - `scan` — labeled 2D fan in frame `lidar` (not a Velodyne driver).
 - thermal / probe — local observations; no team message type is claimed here.
+- lepton — operator-laptop PureThermal 3 Y16, read in-process. Not a ROS topic.
+  See `docs/lepton.md`. Celsius is copied onto sensor observations, not published.
 - `ground_truth/pose` — oracle only.
 
 Do not also run `mock_components/GenericSystem` open-loop odom against the same joints.

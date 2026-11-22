@@ -220,6 +220,16 @@ sensor-based field autonomy.
 embr-local-sim launch --scene wildfire --mission
 ```
 
+**Laptop Lepton (optional).** A PureThermal 3 on the operator machine. This
+does not move with the robot. Install the extra, then:
+
+```bash
+python -m pip install -e ".[lepton]"
+embr-local-sim launch --lepton
+```
+
+Details, the Celsius rule, and what was not measured: [`docs/lepton.md`](docs/lepton.md).
+
 **Headless check** (no browser, Viser is not imported):
 
 ```bash
@@ -250,6 +260,7 @@ sandbox. It is not the capstan and not a sensor mast from CAD.
 | IMU and encoders | Copied from simulator state. Default noise is zero. Not a hardware spec. |
 | 2D lidar | `mj_ray` fan, 21 rays, 120°, 2.0 m. Those numbers are assumed for this proxy. Not a Velodyne. |
 | Temperature | Samples of a Gaussian field in the scene. Peaks in the YAML are assumed °C. Not fire simulation and not FDS. Component heat ratings are **UNKNOWN**. |
+| Lepton / PureThermal 3 | Optional laptop USB camera (`--lepton`). 160×120 Y16. Celsius is `(raw - 27315) / 100` when the frame is T-linear (radiometric 3.1R or 3.5). A non-radiometric 3.1 14-bit frame is shown and marked not-Celsius. The viewer starts if the camera is unplugged. See [`docs/lepton.md`](docs/lepton.md). |
 | Ground-truth pose overlay | Debug checkbox in the viewer. Hidden from the default mission. |
 
 Passing a headless run shows that this proxy stays finite and that a forward

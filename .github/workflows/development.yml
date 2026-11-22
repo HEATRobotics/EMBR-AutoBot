@@ -68,7 +68,9 @@ jobs:
           started=$(date +%s)
           docker compose -f "${{ matrix.compose_file }}" build development
           echo "DEV_BUILD_SECONDS=$(( $(date +%s) - started ))" >> "$GITHUB_ENV"
-
+      - name: Make the workspace writable for the container user
+        run: chmod -R a+rwX embr, phys/ros2_ws 
+         
       - name: Start development service
         run: ./scripts/ci/compose_smoke_test.sh "${{ matrix.compose_file }}" development "development environment is ready"
 

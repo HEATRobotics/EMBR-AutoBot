@@ -20,6 +20,8 @@ error() { printf '[ERROR] %s\n' "$1" >&2; }
 
 COMPOSE_FILE="${1:?Usage: $0 <compose-file> [service]}"
 ONLY_SERVICE="${2:-}"
+READY_TEXT="${3:-}"
+READY_TIMEOUT="${SMOKE_READY_TIMEOUT:-90}"
 
 if [ ! -f "${COMPOSE_FILE}" ]; then
     error "No such compose file: ${COMPOSE_FILE}"
@@ -69,27 +71,46 @@ for service in "${SERVICES[@]}"; do
     fi
     rm -f "${up_log}"
 
-    # Give the entrypoint (which may run a first-time colcon build) a window
-    # to finish and settle, then confirm the container is still running.
-    running="false"
-    for _ in $(seq 1 30); do
-        state="$(docker compose --profile '*' -f "${COMPOSE_FILE}" ps --format '{{.State}}' "${service}" 2>/dev/null || true)"
-        if [ "${state}" = "running" ]; then
-            running="true"
-            break
-        fi
-        sleep 2
-    done
-
-    if [ "${running}" = "true" ]; then
-        success "${service}: running."
+    ok="false"
+    if [ -n "${READY_TEXT}" ]; then
+        #No ready text: pass as soon as the container is running. Otherwise, wait for the ready text to appear in the logs.
+        for_in $(seq 1 30); do
+            state="$(docker compose --profile '*' -f "${COMPOSE_FILE}" ps --format '{{.State}}' "${service}" 2>/dev/null || true)"
+            if [ "${state}" != "running" ]; then
+                ok="true"
+                break
+            fi
+            sleep 2
+        done
     else
-        error "${service}: did not reach the running state."
-        docker compose --profile '*' -f "${COMPOSE_FILE}" logs "${service}" || true
-        status=1
+    #Ready text is provided: wait for it to appear in the logs.
+        info "Waiting up to ${READY_TIMEOUT}s for '${READY_TEXT}' in ${service} logs..."
+            for _ in $(seq 1 $(( (READY_TIMEOUT + 1) / 2 ))); do
+            logs="$(docker compose --profile '*' -f "${COMPOSE_FILE}" logs "${service}" 2>&1 || true)"
+            case "${logs}" in
+                *"${READY_TEXT}"*)
+                ok="true"
+                break
+                ;;
+            esac
+            state="$(docker compose --profile '*' -f "${COMPOSE_FILE}" ps -a --format '{{.State}}' "${service}" 2>/dev/null || true)"
+            if [ "${state}" = "exited" ] || [ "${state}" = "dead" ]; then
+                error "${service}: container exited before printing '${READY_TEXT}'."
+                break
+            fi
+            sleep 2
+        done
     fi
 
-    docker compose --profile '*' -f "${COMPOSE_FILE}" stop "${service}" || true
-done
+        if [ "${ok}" = "true" ]; then
+            success "${service}: running."
+        else
+            error "${service}: did not become ready."
+            docker compose --profile '*' -f "${COMPOSE_FILE}" logs "${service}" || true
+            status=1
+        fi
+
+        docker compose --profile '*' -f "${COMPOSE_FILE}" stop "${service}" || true
+    done
 
 exit "${status}"

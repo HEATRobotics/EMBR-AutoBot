@@ -79,10 +79,14 @@ Simulation-only slice of the Autonomy Test Deliverable: no hardware, no ROS. A 2
 
 ```bash
 .venv/bin/python -m embr_local_sim launch --scene autonomy-course --histogram
-.venv/bin/python -m pytest tests/test_autonomy_course.py -q
+.venv/bin/python -m pytest tests/test_autonomy_course.py tests/test_sensor_overlay.py -q
 ```
 
-Click **Go to the heat source**.
+Click **Go to the heat source**. The **Sensor views** panel shows:
+
+- **LiDAR beams**: cyan hit something, grey reached max range, orange hit the robot's own body.
+- **VFH sectors**: one spoke per sector (long and green is open, short and red is blocked). Blue is the goal heading, white the heading VFH picked. The bar image is the same histogram unrolled, robot's left on the left.
+- **Thermal bins**: the 9-bin thermal "camera" as a coloured strip and as points where each bin samples.
 
 **Lidar (CAD body).** A 360°, 60-ray puck on a mast at the front-centre of the top deck, scan plane about 0.205 m off the ground. A second ray against the CAD mesh flags beams the robot's own track tops block (about ±90° and ±140°). Returns that land on the ground plane are dropped, standing in for 3D-lidar ground segmentation. The planner still reads the forward 120° minus blocked beams, because the mission helpers treat the scan as a forward fan.
 

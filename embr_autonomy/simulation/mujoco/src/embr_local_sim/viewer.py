@@ -444,6 +444,9 @@ def run_viewer(
             initial_value=False,
             hint="Not available to autonomy unless oracle is on.",
         )
+    from embr_local_sim.sensor_overlay import SensorOverlay
+
+    ctx["overlay"] = SensorOverlay(server)
     from embr_local_sim.mission import instruction_markdown
 
     with server.gui.add_folder("Mission / autonomy", expand_by_default=True):
@@ -590,6 +593,7 @@ def run_viewer(
             except Exception:
                 handle.visible = False
         _lidar_handle["h"] = None
+        ctx["overlay"].reset()
         _probe_handle["h"] = None
         _contact_handle["h"] = None
         use_seed = int(seed_slider.value) if seed is None else int(seed)
@@ -880,6 +884,7 @@ def run_viewer(
                     ctx["chassis"], ctx["wheels"], ctx["extra"] = ch, wh, eh
                 if show_lidar.value:
                     _sync_lidar(server, obs)
+                ctx["overlay"].sync(sim_now, obs)
                 _sync_probe(server, sim_now)
                 _sync_flame_pulse(ctx["world_nodes"], gt.sim_time)
                 if show_contacts.value:

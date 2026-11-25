@@ -86,6 +86,9 @@ def vfh_steer(
         return False
 
     goal = max(-fov, min(fov, goal_heading))
+    if memory is not None:
+        # Read by the viewer overlay only. Nothing downstream steers on it.
+        memory["vfh_debug"] = {"centers": centers, "density": list(density), "goal": goal, "heading": None}
     previous_h = 0.0 if memory is None else float(memory.get("vfh", 0.0))
     best_h: float | None = None
     best_cost = 1e9
@@ -110,10 +113,12 @@ def vfh_steer(
         best_h = centers[fallback]
         if memory is not None:
             memory["vfh"] = best_h
+            memory["vfh_debug"]["heading"] = best_h
         turn = max(-1.0, min(1.0, -best_h * 2.4))
         return TeleCmd(-0.40, turn, wall, source="mission"), "backing_up"
     if memory is not None:
         memory["vfh"] = best_h
+        memory["vfh_debug"]["heading"] = best_h
     # This chassis arcs slowly. A half-stick turn reaches a trunk before the
     # body has yawed clear of it, so an off-center valley gets a fuller turn
     # and a shorter speed. +heading is left, +turn is right.

@@ -458,6 +458,14 @@ def world_for_mode(mode: str, seed: int = 2) -> WorldSpec:
         return engineering_world()
     if key in {"wildfire", "wildfire-mission", "mission"}:
         return wildfire_world(seed=seed)
+    if key in {"hot-room", "hotroom"}:
+        from embr_local_sim.hot_room import room_straight
+
+        return room_straight()
+    if key in {"hot-room-2", "hotroom-2"}:
+        from embr_local_sim.hot_room import room_offset
+
+        return room_offset()
     if key in {"basic", "flat", "default"}:
         return WorldSpec(kind="flat", seed=seed)
     if key in {"forest", "explore"}:
@@ -569,6 +577,10 @@ def prepare_world(mode: str, seed: int, morphology: str) -> WorldSpec:
         from embr_local_sim.yard import yard_world
 
         return yard_world(morphology, seed=seed)
+    if key in {"heat-track", "hot-room-3", "room-3"}:
+        from embr_local_sim.heat_track import heat_track_world
+
+        return heat_track_world(morphology, seed=seed)
     world = world_for_mode(mode, seed=seed)
     scale = resolve_body(morphology).layout_scale
     if scale != 1.0:

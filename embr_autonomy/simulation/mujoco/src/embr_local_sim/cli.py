@@ -28,6 +28,9 @@ SCENES = (
     "stones",
     "rough",
     "yard",
+    "hot-room",
+    "hot-room-2",
+    "heat-track",
 )
 
 
@@ -50,6 +53,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--mission",
         action="store_true",
         help="Start the optional sensor-driven mission after launch. This is a demonstration, not field autonomy.",
+    )
+    launch.add_argument(
+        "--histogram",
+        action="store_true",
+        help="Hot rooms: drive with the lidar histogram. Leave this off and the steer slot stays empty.",
     )
 
     cad = sub.add_parser(
@@ -77,10 +85,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory for scenario JSON/CSV logs (default: ./embr-sim-runs)",
     )
 
+    sub.add_parser("rooms", help="Open the three hotspot rooms. Click Go to the heat source in each tab.")
     sub.add_parser("test", help="Run pytest for this package")
     sub.add_parser("doctor", help="Report Python dependencies. ROS is not required.")
     write_model = sub.add_parser("write-model", help="Write generated MJCF to a file")
     write_model.add_argument("--out", default=None, help="Output XML path")
+    motor = sub.add_parser("motor", help="Standalone Maxon motor twin with synthetic feedback")
+    motor.add_argument("--config", default=None, help="Motor parameter YAML (default: packaged EC-i52)")
+    motor.add_argument("--headless", action="store_true", help="Check the 12-second replay without a browser")
+    motor.add_argument("--out", default=None, help="Directory for headless CSV/JSON evidence")
+    motor.add_argument("--write-model", default=None, metavar="PATH", help="Export the motor MJCF and exit")
+    motor.add_argument("--host", default="127.0.0.1", help="Browser bind address (default: localhost)")
+    motor.add_argument("--port", type=int, default=43147, help="Browser server port (default: 43147)")
     return parser
 
 
@@ -127,6 +143,8 @@ def _resolve_run(args: argparse.Namespace) -> tuple[RobotParams, WorldSpec, str,
         raise ValueError(f"Unknown scene {scene!r}. Choose one of: {', '.join(SCENES)}.")
     seed = int(args.seed if args.seed is not None else cfg.get("seed", 1))
     morphology = args.morphology or str(cfg.get("morphology", morph_default))
+    if scene in ("hot-room", "hot-room-2", "heat-track") and not args.morphology and "morphology" not in cfg:
+        morphology = "cad"
     from embr_local_sim.body import KNOWN_BODIES, apply_body
 
     if morphology not in KNOWN_BODIES:
@@ -222,7 +240,7 @@ def _run_scenarios(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
-def _open_viewer(params, world, scene, seed, host, port, start_mission: bool) -> int:
+def _open_viewer(params, world, scene, seed, host, port, start_mission: bool, histogram: bool = False) -> int:
     from embr_local_sim.viewer import run_viewer
 
     try:
@@ -234,6 +252,7 @@ def _open_viewer(params, world, scene, seed, host, port, start_mission: bool) ->
             params=params,
             mode=scene,
             seed=seed,
+            histogram=histogram,
         )
     except RuntimeError as exc:
         print(exc, file=sys.stderr)
@@ -247,7 +266,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "launch":
             params, world, scene, seed = _resolve_run(args)
             return _open_viewer(
-                params, world, scene, seed, args.host, args.port, bool(args.mission)
+                params,
+                world,
+                scene,
+                seed,
+                args.host,
+                args.port,
+                bool(args.mission),
+                histogram=bool(getattr(args, "histogram", False)),
             )
         if args.cmd == "cad":
             from embr_local_sim.cad_rover import open_session
@@ -265,10 +291,45 @@ def main(argv: list[str] | None = None) -> int:
             if args.steps is not None:
                 return _run_steps(args)
             return _run_scenarios(args)
+        if args.cmd == "rooms":
+            from embr_local_sim.two_rooms import main as rooms_main
+
+            return rooms_main()
         if args.cmd == "doctor":
             from embr_local_sim.doctor import main as doctor_main
 
             return doctor_main()
+        if args.cmd == "motor":
+            import json
+
+            from embr_local_sim.motor import MotorTwin, load_motor_params, motor_mjcf
+
+            params = load_motor_params(args.config)
+            if args.write_model:
+                if args.headless or args.out:
+                    raise ValueError("Use --write-model on its own, without --headless or --out")
+                out = Path(args.write_model)
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text(motor_mjcf(params), encoding="utf-8")
+                print(out)
+                return 0
+            if args.out and not args.headless:
+                raise ValueError("--out requires --headless")
+            twin = MotorTwin(params)
+            if args.headless:
+                from embr_local_sim.motor_demo import run_headless
+
+                summary = run_headless(twin, args.out)
+                print(json.dumps(summary, sort_keys=True))
+                return 0 if summary["passed"] else 1
+            from embr_local_sim.motor_viewer import run_motor_viewer
+
+            try:
+                run_motor_viewer(twin, host=args.host, port=args.port)
+            except RuntimeError as exc:
+                print(exc, file=sys.stderr)
+                return 1
+            return 0
         if args.cmd == "write-model":
             from embr_local_sim.model import write_mjcf
 

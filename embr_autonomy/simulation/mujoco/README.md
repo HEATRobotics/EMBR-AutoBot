@@ -116,6 +116,14 @@ angle_i = -asin(lift_i / L)          # + is the cylinder going up
 
 The **Arm** panel has the three sliders and shows `ArmStatus` (IDLE 0, MOVING 1, REACHED 2, FAULT 3) plus the four arm angles. From Python: `sim.set_arm(height, pitch, roll)` and `sim.arm_status()`.
 
+**Auto posture.** While a mission drives, `auto_posture.py` owns the arms (toggle: **Auto posture in missions**). It reads only deployable signals: IMU roll and pitch, wheel encoder speed, and the mission's own jam reaction.
+
+- **Level:** pitch and roll commands are integrated against the measured tilt (1° deadband).
+- **Slope:** past 2.5° of tilt it lifts to height 0.35 for belly clearance at crests, and holds that for 3 s after.
+- **Unstick:** when the mission backs up from a jam, or the encoders turn under a quarter of the commanded speed for 1 s, it lifts to 0.8 for 6 s.
+
+On flat ground it stays at height 0, because a taller body raises the flat lidar over the hot rooms' 0.22 m walls. On a 7° hump with an 11 cm crest, the level body high-centres. With auto posture it clears (`tests/test_auto_posture.py`). Sharp steps taller than the belly need a step-climbing sequence, which this does not do yet.
+
 MuJoCo reads the URDF with its own importer. `urdf_model.py` adds what URDF cannot express: the free joint, sensor sites, actuators and contact groups. Mass, gains and limits are assumed.
 
 ## Standalone Maxon motor twin

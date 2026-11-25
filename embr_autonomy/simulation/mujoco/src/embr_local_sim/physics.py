@@ -189,6 +189,10 @@ class Simulator:
 
         # None on bodies without an arm. The URDF body has one.
         self.arm = ArmController.from_model(self.model)
+        from embr_local_sim.auto_posture import AutoPosture
+
+        # Owns the arms while a mission drives. Off: the manual arm command stands.
+        self.auto_posture = AutoPosture() if self.arm is not None else None
         self._probe_act = int(self.model.actuator(PROBE_ACTUATOR).id)
         self._probe_qpos = int(self.model.joint(PROBE_JOINT).qposadr[0])
         self._root_id = int(self.model.body(ROOT_BODY).id)
@@ -221,6 +225,10 @@ class Simulator:
     def arm_status(self):
         """ArmStatus (IDLE, MOVING, REACHED, FAULT) and a message, or None without an arm."""
         return None if self.arm is None else self.arm.status(self.data)
+
+    def set_auto_posture(self, enabled: bool) -> None:
+        if self.auto_posture is not None:
+            self.auto_posture.enabled = bool(enabled)
 
     def set_art_targets(self, targets: dict[str, float]) -> None:
         self.enqueue(UiRequest(kind="art_targets", art_targets=targets))
@@ -293,6 +301,8 @@ class Simulator:
             self.data.qpos[self._joint_adr[name]] = 0.0
         for name, adr in self._art_qpos.items():
             self.data.qpos[adr] = 0.0
+        if self.auto_posture is not None:
+            self.auto_posture.reset()
         if self.arm is not None:
             self.arm.reset()
             for adr in self.arm.joint_positions(self.data):
@@ -736,6 +746,7 @@ class Simulator:
         if self.mission.state in ("IDLE", "COMPLETE", "FAULT"):
             return
         tele = self.mission.tick(view, wall=wall_now)
+        self._tick_auto_posture(view)
         if self.mission.probe_command == "deploy":
             self.probe.request_deploy(float(self.data.time))
         elif self.mission.probe_command == "stow":
@@ -743,6 +754,32 @@ class Simulator:
         if self.probe.extended:
             tele = TeleCmd(0.0, tele.turn, tele.timestamp_wall, source=tele.source)
         self._apply_tele(tele, wall_now)
+
+    def _encoder_ground_speed(self) -> float:
+        """Mean forward ground speed the wheel encoders claim, m/s."""
+        vel = self._joint_vel()
+        names = [n for n in self._drive_names if n in vel]
+        if not names:
+            return 0.0
+        return float(np.mean([vel[n] for n in names])) * self.params.hinge_from_ground_speed * self.params.wheel_radius
+
+    def _tick_auto_posture(self, view: MissionView) -> None:
+        auto = self.auto_posture
+        if auto is None or self.arm is None or not auto.enabled:
+            return
+        pose = auto.update(
+            t=float(self.data.time),
+            roll_rad=float(view.roll_rad),
+            pitch_rad=float(view.pitch_rad),
+            reason=str(self.mission.reason),
+            dt=1.0 / self.params.control_hz,
+            commanded_mps=float(self.controller.target_vx),
+            wheel_mps=self._encoder_ground_speed(),
+        )
+        current = (self.arm.normalised["height"], self.arm.normalised["pitch"], self.arm.normalised["roll"])
+        # Re-command only on a real change, so ArmStatus can still report REACHED or FAULT.
+        if max(abs(a - b) for a, b in zip(pose, current)) > 0.02 or self.arm.commanded_at is None:
+            self.arm.command(*pose, float(self.data.time))
 
     def step_physics(self, n: int = 1) -> GroundTruthState:
         """Integrate n fixed steps. Never skips steps to fake real-time.

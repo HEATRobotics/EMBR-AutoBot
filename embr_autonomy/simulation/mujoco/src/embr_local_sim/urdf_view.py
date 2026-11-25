@@ -46,9 +46,15 @@ class ArmPanel:
             )
             self.pitch = server.gui.add_slider("Pitch", min=-1.0, max=1.0, step=0.05, initial_value=0.0, hint="+ nose down")
             self.roll = server.gui.add_slider("Roll", min=-1.0, max=1.0, step=0.05, initial_value=0.0, hint="+ left side up")
+            self.auto = server.gui.add_checkbox(
+                "Auto posture in missions",
+                initial_value=True,
+                hint="Levels on slopes, lifts for clearance, lifts higher when stuck. Off: the sliders hold.",
+            )
             self.status = server.gui.add_markdown("**ArmStatus** IDLE")
         for slider in (self.height, self.pitch, self.roll):
             slider.on_update(lambda _event: self._send())
+        self.auto.on_update(lambda _event: self._get_sim().set_auto_posture(bool(self.auto.value)))
 
     def _send(self) -> None:
         self._get_sim().set_arm(float(self.height.value), float(self.pitch.value), float(self.roll.value))
@@ -60,10 +66,12 @@ class ArmPanel:
             self.status.content = "**ArmStatus** — this body has no arms"
             return
         deg = {k: math.degrees(v) for k, v in sim.arm.joint_positions(sim.data).items()}
+        auto = getattr(sim, "auto_posture", None)
+        mode = f"auto `{auto.mode}`" if auto is not None and auto.enabled else "manual"
         cmd = sim.arm.normalised
         self.status.content = (
             f"**ArmStatus** `{status.name}` — {status.message}  \n"
-            f"h `{cmd['height']:+.2f}` p `{cmd['pitch']:+.2f}` r `{cmd['roll']:+.2f}`  \n"
+            f"{mode} · h `{cmd['height']:+.2f}` p `{cmd['pitch']:+.2f}` r `{cmd['roll']:+.2f}`  \n"
             f"FL `{deg['arm_front_left']:+.0f}°` · FR `{deg['arm_front_right']:+.0f}°` · "
             f"RL `{deg['arm_rear_left']:+.0f}°` · RR `{deg['arm_rear_right']:+.0f}°` (+ is up)"
         )

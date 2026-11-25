@@ -91,8 +91,10 @@ def test_the_lidar_sits_on_top_and_sees_around_the_body() -> None:
     blocked = [a for a, own in zip(obs.lidar_angles, obs.lidar_occluded) if own]
     assert blocked, "the track tops should shadow some beams"
     assert all(abs(a) > math.radians(60) for a in blocked)
+    # The planner gets the whole ring, minus the beams the body blocks.
     ranges, angles = sim._planner_scan(obs)
-    assert len(ranges) == 21 and max(abs(a) for a in angles) <= math.radians(60) + 1e-9
+    assert len(ranges) == len(obs.lidar_ranges) - len(blocked)
+    assert min(angles) < math.radians(-170) and max(angles) > math.radians(170)
 
 
 @pytest.mark.parametrize("morphology", ["cad", "urdf"])

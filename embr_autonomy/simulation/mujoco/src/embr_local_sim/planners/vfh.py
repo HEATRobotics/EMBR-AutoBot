@@ -41,7 +41,9 @@ def vfh_steer(
     if max(angles) - min(angles) < 0.4:
         return None
     fov = max(abs(a) for a in angles)
-    n = 15
+    # 15 sectors over the old 120 degree fan (8 degrees each). A wider scan
+    # keeps that resolution instead of stretching the sectors.
+    n = max(15, round(15 * fov / math.radians(60.0)))
     width = (2.0 * fov) / n
     centers = [-fov + width * (i + 0.5) for i in range(n)]
     # Each bin keeps the nearest return that actually falls in it. A short

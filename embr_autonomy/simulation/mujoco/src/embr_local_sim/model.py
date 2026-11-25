@@ -75,7 +75,6 @@ class RobotParams:
     lidar_max_range: float = 2.0
     lidar_min_range: float = 0.02
     # The planner reads only this forward slice of the scan. None means the whole scan.
-    # The mission helpers index the scan as a forward fan, so a 360 degree body narrows it.
     planner_fov_deg: float | None = None
     # Cast a second ray against the robot's own mesh and flag beams it blocks.
     # Off for the proxies, whose low site would see its own wheels.

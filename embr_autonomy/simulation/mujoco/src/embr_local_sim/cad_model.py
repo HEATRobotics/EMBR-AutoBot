@@ -110,10 +110,10 @@ def apply_cad_params(robot: RobotParams) -> RobotParams:
         # ASSUMED fan. The proxy uses 2 m. Scaled scenes extend several metres.
         # This is not a lidar datasheet.
         lidar_max_range=8.0,
-        # 360 degree puck, 6 degree spacing. The planner keeps the old forward 120.
+        # 360 degree puck, 6 degree spacing. The planner reads the whole ring.
         lidar_fov_deg=360.0,
         lidar_n_rays=60,
-        planner_fov_deg=120.0,
+        planner_fov_deg=None,
         lidar_self_occlusion=True,
         lidar_ground_filter=True,
         thermal_sample_range=0.55 * (float(geo["plate"]["size_m"][2]) / 0.15),

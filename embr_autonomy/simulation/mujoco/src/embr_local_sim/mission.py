@@ -17,6 +17,12 @@ from embr_local_sim.policy import ClassicalLocalPolicy, LocalPolicy
 from embr_local_sim.tele_cmd import TeleCmd
 
 
+# The nose rays: the middle five of the old 21-ray, 120 degree fan.
+FRONT_HALF_RAD = math.radians(12.5)
+# The jam check reads only the straight-ahead ray. An angled ray grazing a
+# wall the robot drives along keeps the same range while the robot moves.
+NOSE_HALF_RAD = math.radians(3.5)
+
 STATES = (
     "IDLE",
     "GOTO",
@@ -485,7 +491,7 @@ class MissionMachine:
         alone never says stuck. The latch fires one backup, then waits for
         a fresh window.
         """
-        front = self._front_range(view)
+        front = self._front_range(view, NOSE_HALF_RAD)
         self._vfh_motion.append((t, view.odom_yaw, front))
         horizon = t - 1.05
         self._vfh_motion = [sample for sample in self._vfh_motion if sample[0] >= horizon]
@@ -602,9 +608,15 @@ class MissionMachine:
         self.reason = reason
         self.state_entered = sim_time
 
-    def _front_range(self, view: MissionView) -> float:
+    def _front_range(self, view: MissionView, half: float = FRONT_HALF_RAD) -> float:
         if not view.lidar_ranges:
             return view.lidar_max_range
+        # By angle, not index: on a 360 degree scan with self-blocked rays
+        # dropped, the middle indices no longer point straight ahead.
+        if view.lidar_angles and len(view.lidar_angles) == len(view.lidar_ranges):
+            ahead = [r for a, r in zip(view.lidar_angles, view.lidar_ranges) if abs(a) <= half]
+            if ahead:
+                return min(ahead)
         n = len(view.lidar_ranges)
         lo = max(0, n // 2 - 2)
         hi = min(n, n // 2 + 3)

@@ -411,6 +411,7 @@ def run_viewer(
         "hot-room",
         "hot-room-2",
         "heat-track",
+        "autonomy-course",
     )
     if mode:
         key = mode.replace("_", "-")
@@ -1018,7 +1019,7 @@ def _add_static_world(server: Any, world: WorldSpec, params: RobotParams) -> lis
                 dimensions=(2.0 * sx, 2.0 * sy, 2.0 * sz),
                 position=(px, py, pz),
                 wxyz=(math.cos(ey / 2.0), 0.0, math.sin(ey / 2.0), 0.0),
-                color=(210, 140, 60) if on_deck else (170, 110, 55),
+                color=_ramp_color(ramp, on_deck),
             )
         )
     if world.kind == "bumps":
@@ -1326,6 +1327,14 @@ def _sync_bodies(sim: Simulator, chassis_handle, wheel_handles, extra_handles, g
         bid = int(sim.model.body(body).id)
         handle.position = tuple(float(v) for v in sim.data.xpos[bid])
         handle.wxyz = tuple(float(v) for v in sim.data.xquat[bid])
+
+
+def _ramp_color(ramp: dict[str, Any], on_deck: bool) -> tuple[int, int, int]:
+    """Lane ramps keep their old browns. Course humps carry their own rgba (red is too steep)."""
+    if str(ramp["name"]).startswith("hump_") and ramp.get("rgba"):
+        r, g, b = (float(v) for v in str(ramp["rgba"]).split()[:3])
+        return (int(255 * r), int(255 * g), int(255 * b))
+    return (210, 140, 60) if on_deck else (170, 110, 55)
 
 
 _lidar_handle = {"h": None}

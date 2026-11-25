@@ -96,6 +96,8 @@ class SensorObservations:
     lidar_hit_x: list[float] = field(default_factory=list)
     lidar_hit_y: list[float] = field(default_factory=list)
     lidar_hit_z: list[float] = field(default_factory=list)
+    # True where the ray hit the robot's own body. Those ranges are not obstacles.
+    lidar_occluded: list[bool] = field(default_factory=list)
     lidar_max_range: float = 2.0
     lidar_stamp_sim: float = 0.0
     thermal_frame: str = "thermal"

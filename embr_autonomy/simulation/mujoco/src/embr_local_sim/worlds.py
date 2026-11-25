@@ -581,6 +581,10 @@ def prepare_world(mode: str, seed: int, morphology: str) -> WorldSpec:
         from embr_local_sim.heat_track import heat_track_world
 
         return heat_track_world(morphology, seed=seed)
+    if key in {"autonomy-course", "course-test"}:
+        from embr_local_sim.autonomy_course import autonomy_course_world
+
+        return autonomy_course_world(seed=seed)
     world = world_for_mode(mode, seed=seed)
     scale = resolve_body(morphology).layout_scale
     if scale != 1.0:

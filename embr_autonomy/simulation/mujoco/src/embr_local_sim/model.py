@@ -74,6 +74,15 @@ class RobotParams:
     lidar_fov_deg: float = 120.0
     lidar_max_range: float = 2.0
     lidar_min_range: float = 0.02
+    # The planner reads only this forward slice of the scan. None means the whole scan.
+    # The mission helpers index the scan as a forward fan, so a 360 degree body narrows it.
+    planner_fov_deg: float | None = None
+    # Cast a second ray against the robot's own mesh and flag beams it blocks.
+    # Off for the proxies, whose low site would see its own wheels.
+    lidar_self_occlusion: bool = False
+    # Drop returns that land on the ground plane, as 3D-lidar ground segmentation
+    # would. Without it a pitched fan reads the floor ahead as a wall.
+    lidar_ground_filter: bool = False
     thermal_n_bins: int = 9
     thermal_fov_deg: float = 90.0
     thermal_sample_range: float = 0.55
@@ -258,21 +267,79 @@ def build_mjcf(robot: RobotParams, world: WorldSpec | None = None) -> str:
     return xml
 
 
+def _hump_ramp_geoms(specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Full-width humps along +x: an up slope, a flat deck, a down slope.
+
+    Each spec is x (toe of the up slope), y, width, length (one slope), deck,
+    angle_deg. The slabs are solid to the floor so nothing passes under them.
+    By default they sit in geom group 2, which the 2D lidar fan does not
+    ray-cast. A flat fan would read a slope as a wall; a 3D lidar would segment
+    it as ground. `lidar_visible: true` puts a hump in group 0 so the fan sees
+    it as an obstacle, for slopes too steep to drive.
+    """
+    out: list[dict[str, Any]] = []
+    for i, spec in enumerate(specs):
+        angle = math.radians(float(spec["angle_deg"]))
+        length = float(spec["length"])
+        deck = float(spec.get("deck", 0.0))
+        x0 = float(spec["x"])
+        y = float(spec.get("y", 0.0))
+        half_w = 0.5 * float(spec["width"])
+        rise = length * math.sin(angle)
+        run = length * math.cos(angle)
+        thick = max(rise, 0.01)
+        half = 0.5 * length
+        sin_a, cos_a = math.sin(angle), math.cos(angle)
+        up_top = (x0 + 0.5 * run, 0.5 * rise)
+        down_top = (x0 + 1.5 * run + deck, 0.5 * rise)
+        steep = bool(spec.get("lidar_visible"))
+        common = {"rgba": "0.78 0.22 0.18 1" if steep else "0.72 0.46 0.18 1", "group": 0 if steep else 2}
+        out.append(
+            {
+                "name": f"hump_{i}_up",
+                "pos": (up_top[0] + 0.5 * thick * sin_a, y, up_top[1] - 0.5 * thick * cos_a),
+                "size": (half, half_w, 0.5 * thick),
+                "euler": (0.0, -angle, 0.0),
+                **common,
+            }
+        )
+        if deck > 0.0:
+            out.append(
+                {
+                    "name": f"hump_{i}_deck",
+                    "pos": (x0 + run + 0.5 * deck, y, 0.5 * rise),
+                    "size": (0.5 * deck, half_w, 0.5 * rise),
+                    "euler": (0.0, 0.0, 0.0),
+                    **common,
+                }
+            )
+        out.append(
+            {
+                "name": f"hump_{i}_down",
+                "pos": (down_top[0] - 0.5 * thick * sin_a, y, down_top[1] - 0.5 * thick * cos_a),
+                "size": (half, half_w, 0.5 * thick),
+                "euler": (0.0, angle, 0.0),
+                **common,
+            }
+        )
+    return out
+
+
 def lane_ramp_geoms(extras: dict[str, Any] | None) -> list[dict[str, Any]]:
     """A slope under each track, with the belly left clear.
 
     A full-width ramp lets the plate high-center. These lanes are only as
     wide as the rollers. `angle_deg` is the slope. The low end sits on the floor.
     """
+    out = _hump_ramp_geoms((extras or {}).get("ramps") or [])
     spec = (extras or {}).get("track_ramps")
     if not spec:
-        return []
+        return out
     angle = math.radians(float(spec["angle_deg"]))
     length = float(spec["length"])
     start = float(spec.get("x", spec.get("start_x", 0.0)))
     thick = 0.006
     half = 0.5 * length
-    out: list[dict[str, Any]] = []
     for i, lane in enumerate(spec.get("lanes") or []):
         y = float(lane["y"])
         width = float(lane["width"])
@@ -343,11 +410,12 @@ def _world_geoms(robot: RobotParams, world: WorldSpec) -> str:
         sx, sy, sz = ramp["size"]
         _ex, ey, ez = ramp["euler"]
         rgba = str(ramp.get("rgba", "0.62 0.42 0.22 1"))
+        group = int(ramp.get("group", 0))
         chunks.append(
             f"""    <geom name="{ramp['name']}" type="box"
           pos="{px:.5f} {py:.5f} {pz:.5f}" euler="0 {ey:.6f} {ez:.6f}"
           size="{sx:.5f} {sy:.5f} {sz:.5f}"
-          rgba="{rgba}" contype="1" conaffinity="2" group="0"/>"""
+          rgba="{rgba}" contype="1" conaffinity="2" group="{group}"/>"""
         )
 
     if world.kind == "bumps":

@@ -31,6 +31,7 @@ SCENES = (
     "hot-room",
     "hot-room-2",
     "heat-track",
+    "autonomy-course",
 )
 
 
@@ -143,7 +144,7 @@ def _resolve_run(args: argparse.Namespace) -> tuple[RobotParams, WorldSpec, str,
         raise ValueError(f"Unknown scene {scene!r}. Choose one of: {', '.join(SCENES)}.")
     seed = int(args.seed if args.seed is not None else cfg.get("seed", 1))
     morphology = args.morphology or str(cfg.get("morphology", morph_default))
-    if scene in ("hot-room", "hot-room-2", "heat-track") and not args.morphology and "morphology" not in cfg:
+    if scene in ("hot-room", "hot-room-2", "heat-track", "autonomy-course") and not args.morphology and "morphology" not in cfg:
         morphology = "cad"
     from embr_local_sim.body import KNOWN_BODIES, apply_body
 

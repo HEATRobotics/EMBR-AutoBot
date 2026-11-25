@@ -603,15 +603,31 @@ class Simulator:
             )
         )
 
+    def _planner_scan(self, obs: SensorObservations) -> tuple[list[float], list[float]]:
+        """Forward slice for the planner, without rays the body blocks."""
+        fov = self.params.planner_fov_deg
+        occluded = obs.lidar_occluded or [False] * len(obs.lidar_ranges)
+        if fov is None and not any(occluded):
+            return list(obs.lidar_ranges), list(obs.lidar_angles)
+        half = math.radians(0.5 * fov) if fov is not None else math.inf
+        keep = [
+            (r, a)
+            for r, a, own in zip(obs.lidar_ranges, obs.lidar_angles, occluded)
+            if abs(a) <= half + 1e-9 and not own
+        ]
+        keep.sort(key=lambda pair: pair[1])
+        return [r for r, _a in keep], [a for _r, a in keep]
+
     def _mission_view(self, obs: SensorObservations, gt: GroundTruthState) -> MissionView:
+        ranges, angles = self._planner_scan(obs)
         return MissionView(
             sim_time=obs.sim_time,
             stamp_wall=obs.stamp_wall,
             odom_x=obs.wheel_odom_x,
             odom_y=obs.wheel_odom_y,
             odom_yaw=obs.wheel_odom_yaw,
-            lidar_ranges=list(obs.lidar_ranges),
-            lidar_angles=list(obs.lidar_angles),
+            lidar_ranges=ranges,
+            lidar_angles=angles,
             lidar_stamp_sim=obs.lidar_stamp_sim,
             thermal_c=list(obs.thermal_c),
             thermal_angles=list(obs.thermal_angles),

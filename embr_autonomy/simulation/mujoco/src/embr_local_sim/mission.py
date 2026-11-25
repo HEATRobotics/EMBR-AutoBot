@@ -114,6 +114,8 @@ class MissionConfig:
     goal_x: float | None = None
     goal_y: float | None = None
     goal_points: tuple | None = None
+    # Clearance VFH keeps from a return, metres. None keeps the proxy-tuned default.
+    body_half_width: float | None = None
 
 
 def scene_to_open_for_follow(kind: str) -> str | None:
@@ -423,6 +425,8 @@ class MissionMachine:
         from embr_local_sim.planners.base import SteerContext
 
         half = 0.07 if self.config.blocked_range < 0.25 else 0.22
+        if self.config.body_half_width is not None:
+            half = float(self.config.body_half_width)
         found = self.planner.steer(
             SteerContext(
                 view=view,

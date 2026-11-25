@@ -73,6 +73,21 @@ python3.12 -m venv .venv
 
 Room 1 is [http://127.0.0.1:43147](http://127.0.0.1:43147). Room 2 is [http://127.0.0.1:43148](http://127.0.0.1:43148). Room 3 is [http://127.0.0.1:43149](http://127.0.0.1:43149). Leave the terminal open. Ctrl-C stops all three.
 
+## Autonomy test course
+
+Simulation-only slice of the Autonomy Test Deliverable: no hardware, no ROS. A 22 m × 9 m walled field with a centre divider and two routes to an assumed 80 °C smolder past the divider. The left route is blocked by a 15° hump (red). The right route has a 3° and a 6° hump (orange). The CAD body starts on the centre line and the VFH histogram has to pick the route it can drive.
+
+```bash
+.venv/bin/python -m embr_local_sim launch --scene autonomy-course --histogram
+.venv/bin/python -m pytest tests/test_autonomy_course.py -q
+```
+
+Click **Go to the heat source**.
+
+**Lidar (CAD body).** A 360°, 60-ray puck on a mast at the front-centre of the top deck, scan plane about 0.205 m off the ground. A second ray against the CAD mesh flags beams the robot's own track tops block (about ±90° and ±140°). Returns that land on the ground plane are dropped, standing in for 3D-lidar ground segmentation. The planner still reads the forward 120° minus blocked beams, because the mission helpers treat the scan as a forward fan.
+
+**Ramps.** The CAD body's climb limit with its assumed 0.5 N·m rollers was measured at 7.5° (7° crosses, 8° stalls). Humps under that limit sit in a geom group the flat fan does not see, so they read as floor. Steeper humps are visible and read as walls. This is a stand-in for slope-based traversability from a 3D lidar. Geometry, torque and temperatures are assumed.
+
 ## Standalone Maxon motor twin
 
 `embr-local-sim motor` opens a single EC-i52 motor with an orange shaft

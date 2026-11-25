@@ -151,6 +151,7 @@ class SensorModel:
             lidar_scan["hit_x"] = []
             lidar_scan["hit_y"] = []
             lidar_scan["hit_z"] = []
+            lidar_scan["occluded"] = []
             lidar_scan["stamp_sim"] = self._lidar_frozen_stamp
 
         thermal_c, thermal_ang = self._thermal_bins(gt, thermal, lidar_scan)
@@ -183,6 +184,7 @@ class SensorModel:
             lidar_hit_x=list(lidar_scan.get("hit_x") or []),
             lidar_hit_y=list(lidar_scan.get("hit_y") or []),
             lidar_hit_z=list(lidar_scan.get("hit_z") or []),
+            lidar_occluded=list(lidar_scan.get("occluded") or []),
             lidar_max_range=float(lidar_scan.get("max_range", self.params.lidar_max_range)),
             lidar_stamp_sim=float(lidar_scan.get("stamp_sim", gt.sim_time)),
             thermal_frame="thermal",

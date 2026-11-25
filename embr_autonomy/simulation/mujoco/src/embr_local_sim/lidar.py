@@ -27,11 +27,35 @@ class LidarFan:
         self.max_range = float(params.lidar_max_range)
         self.min_range = float(params.lidar_min_range)
         self.site_name = "lidar"
+        self.self_occlusion = bool(getattr(params, "lidar_self_occlusion", False))
+        self.ground_filter = bool(getattr(params, "lidar_ground_filter", False))
         half = 0.5 * self.fov
         if self.n_rays == 1:
             self.angles = np.array([0.0], dtype=np.float64)
+        elif self.fov >= 2.0 * math.pi - 1e-6:
+            # Full circle: no duplicate ray at +-pi.
+            self.angles = -math.pi + 2.0 * math.pi * np.arange(self.n_rays) / self.n_rays
         else:
             self.angles = np.linspace(-half, half, self.n_rays)
+        self._robot_root: int | None = None
+
+    def _self_hit(self, model: mujoco.MjModel, data: mujoco.MjData, pnt: np.ndarray, world_dir: np.ndarray) -> float:
+        """Distance to the robot's own visual body along this ray, or inf.
+
+        The world cast only sees group 0, so the robot never blocks it. This
+        second cast sees group 1 (the CAD mesh) on moving bodies and keeps a
+        hit only when it belongs to the robot's own tree.
+        """
+        if self._robot_root is None:
+            sid = int(model.site(self.site_name).id)
+            self._robot_root = int(model.body_rootid[model.site_bodyid[sid]])
+        geomid = np.full(1, -1, dtype=np.int32)
+        dist = float(
+            mujoco.mj_ray(model, data, pnt, world_dir, np.array([0, 1, 0, 0, 0, 0], dtype=np.uint8), 0, -1, geomid)
+        )
+        if geomid[0] < 0 or dist < 0.0 or int(model.body_rootid[model.geom_bodyid[geomid[0]]]) != self._robot_root:
+            return math.inf
+        return dist
 
     def scan(self, model: mujoco.MjModel, data: mujoco.MjData) -> dict[str, list[float] | str | float]:
         try:
@@ -55,6 +79,7 @@ class LidarFan:
         hx: list[float] = []
         hy: list[float] = []
         hz: list[float] = []
+        occluded: list[bool] = []
         geomid = np.zeros(1, dtype=np.int32)
         for ang in self.angles:
             local = np.array([math.cos(ang), math.sin(ang), 0.0], dtype=np.float64)
@@ -63,10 +88,17 @@ class LidarFan:
             dist = float(
                 mujoco.mj_ray(model, data, pnt, world_dir, geomgroup, 1, -1, geomid)
             )
-            if not math.isfinite(dist) or dist < 0.0:
+            on_ground = self.ground_filter and geomid[0] >= 0 and model.geom_type[geomid[0]] == mujoco.mjtGeom.mjGEOM_PLANE
+            if not math.isfinite(dist) or dist < 0.0 or on_ground:
                 r = self.max_range
             else:
                 r = min(self.max_range, max(self.min_range, dist))
+            own = self._self_hit(model, data, pnt, world_dir) if self.self_occlusion else math.inf
+            # A real puck returns its own chassis here. Keep that range and flag it.
+            blocked = own < r
+            if blocked:
+                r = max(self.min_range, own)
+            occluded.append(blocked)
             ranges.append(r)
             hit = pnt + world_dir * r
             hx.append(float(hit[0]))
@@ -79,6 +111,7 @@ class LidarFan:
             "hit_x": hx,
             "hit_y": hy,
             "hit_z": hz,
+            "occluded": occluded,
             "max_range": self.max_range,
             "stamp_sim": float(data.time),
         }

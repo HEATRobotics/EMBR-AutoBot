@@ -66,6 +66,15 @@ def cad_body_spec():
     )
 
 
+# Lidar puck on a short mast at the front-centre of the top deck, body frame
+# (root origin). The deck there is ~0.09 m high. 0.13 m above the root puts the
+# scan plane near 0.205 m on flat ground: over the front of the tracks, under
+# the 0.21 m track tops beside it, so the sides and rear corners are blind.
+# ASSUMED mount, not a drawing.
+LIDAR_MOUNT_X = 0.30
+LIDAR_MOUNT_Z = 0.13
+
+
 def cad_lidar_overhang_m() -> float:
     """How far the front idler sticks past the lidar site, in metres.
 
@@ -74,8 +83,7 @@ def cad_lidar_overhang_m() -> float:
     """
     geo = load_cad_geometry()
     radius = float(geo["roller_radius_m"])
-    plate_forward = float(geo["plate"]["size_m"][2])
-    lidar_x = 0.5 * plate_forward - 0.02
+    lidar_x = LIDAR_MOUNT_X
     nose = max(float(roller["body_xyz_m"][0]) for roller in geo["rollers"]) + radius
     return nose - lidar_x
 
@@ -102,6 +110,12 @@ def apply_cad_params(robot: RobotParams) -> RobotParams:
         # ASSUMED fan. The proxy uses 2 m. Scaled scenes extend several metres.
         # This is not a lidar datasheet.
         lidar_max_range=8.0,
+        # 360 degree puck, 6 degree spacing. The planner keeps the old forward 120.
+        lidar_fov_deg=360.0,
+        lidar_n_rays=60,
+        planner_fov_deg=120.0,
+        lidar_self_occlusion=True,
+        lidar_ground_filter=True,
         thermal_sample_range=0.55 * (float(geo["plate"]["size_m"][2]) / 0.15),
     )
 
@@ -189,7 +203,7 @@ def build_cad_mjcf(robot: RobotParams, world: WorldSpec | None = None) -> str:
             friction="{_friction_attr(robot.floor_friction)}"
             contype="2" conaffinity="1" group="3"/>
       <site name="imu" pos="{px:.5f} {py:.5f} {pz + hz:.5f}" size="0.008"/>
-      <site name="lidar" pos="{0.5 * full_x - 0.02:.5f} 0 {pz + hz + 0.04:.5f}" size="0.008"/>
+      <site name="lidar" pos="{LIDAR_MOUNT_X:.5f} 0 {LIDAR_MOUNT_Z:.5f}" size="0.008"/>
       <body name="probe_arm" pos="{ax:.5f} {ay:.5f} {az:.5f}">
         <joint name="probe_hinge" type="hinge" axis="0 1 0" range="0 1.2" damping="0.02"/>
         <geom name="probe_boom" type="capsule" fromto="0 0 0 0.04 0 0" size="0.004"

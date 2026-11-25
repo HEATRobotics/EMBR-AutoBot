@@ -181,6 +181,8 @@ def begin_hotspot_mission(sim, histogram: bool = False) -> None:
     cfg.timeout_s = max(float(cfg.timeout_s), 70.0 * max(scale, 1.0))
     extras = getattr(sim.world, "extras", None) or {}
     cfg.skip_pass = bool(extras.get("skip_pass"))
+    if extras.get("body_half_width") is not None:
+        cfg.body_half_width = float(extras["body_half_width"])
     # Rooms 1 and 2 do not set this. Room 3 names the corner, once, in odometry.
     if extras.get("aim_at_spot") and extras.get("spot") and extras.get("spawn"):
         from embr_local_sim.inspection import world_point_to_estimated

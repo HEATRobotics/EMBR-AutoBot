@@ -123,6 +123,18 @@ def _track_camera(
         client.camera.look_at = (x, y, z)
 
 
+# Held arm keys move the Arm sliders at this rate, normalised units per second.
+ARM_KEY_RATE = 0.6
+ARM_KEYS: dict[str, tuple[str, float]] = {
+    "i": ("pitch", 1.0),
+    "k": ("pitch", -1.0),
+    "j": ("roll", -1.0),
+    "l": ("roll", 1.0),
+    "p": ("height", 1.0),
+    ";": ("height", -1.0),
+}
+
+
 def _install_browser_wasd(server: Any) -> None:
     """Hold-to-drive from the browser keyboard.
 
@@ -136,7 +148,7 @@ def _install_browser_wasd(server: Any) -> None:
 if (!window.__embrWasdArc) {
   window.__embrWasdArc = true;
   const held = new Set();
-  const driveKeys = {w: 1, a: 1, s: 1, d: 1};
+  const driveKeys = {w: 1, a: 1, s: 1, d: 1, i: 1, j: 1, k: 1, l: 1, p: 1, ";": 1};
   const cameraCodes = {
     KeyW: 1, KeyA: 1, KeyS: 1, KeyD: 1, KeyQ: 1, KeyE: 1,
     ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1
@@ -358,6 +370,8 @@ def run_viewer(
             "**A** turn left&nbsp;&nbsp;**D** turn right\n\n"
             "A and D alone turn in place. W or S with A or D turns while moving. "
             "Backing up, A still bends left and D still bends right.\n\n"
+            "Arms (URDF body), hold while driving: **I** / **K** pitch nose down / up, "
+            "**J** / **L** roll left / right side down, **P** / **;** height up / down.\n\n"
             "The blue trail follows the robot."
         )
         speed = server.gui.add_slider("|velocity|", min=0.1, max=1.0, step=0.05, initial_value=0.7)
@@ -370,7 +384,7 @@ def run_viewer(
         key_box = server.gui.add_text(
             "Held keys",
             "",
-            hint="Only the letters w a s d. dw means forward and right.",
+            hint="Only w a s d (drive) and i j k l p ; (arms). dw means forward and right.",
         )
     initial_mode = "basic"
     if world.kind in ("forest",):
@@ -638,11 +652,27 @@ def run_viewer(
     def _mark(axis: str) -> None:
         pressed[axis] = time.time()
 
+    arm_clock = {"t": time.time()}
+
+    def _arm_from_keys(held: set[str], now: float) -> None:
+        dt = min(now - arm_clock["t"], 0.2)
+        arm_clock["t"] = now
+        panel = ctx.get("arm_panel")
+        if panel is None or not held & set(ARM_KEYS):
+            return
+        rate = ARM_KEY_RATE * dt
+        axis = {"height": 0.0, "pitch": 0.0, "roll": 0.0}
+        for key in held & set(ARM_KEYS):
+            name, sign = ARM_KEYS[key]
+            axis[name] += sign * rate
+        panel.nudge(axis["height"], axis["pitch"], axis["roll"])
+
     def _drive_from_keys() -> None:
         now = time.time()
         fresh = 0.18
         raw = str(key_box.value).lower().strip()
-        held = set(raw) if raw and set(raw) <= set("wasd") else set()
+        held = set(raw) & (set("wasd") | set(ARM_KEYS))
+        _arm_from_keys(held, now)
         w = "w" in held or now - pressed["w"] < fresh
         s = "s" in held or now - pressed["s"] < fresh
         a = "a" in held or now - pressed["a"] < fresh

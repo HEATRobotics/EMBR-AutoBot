@@ -114,7 +114,7 @@ angle_i = -asin(lift_i / L)          # + is the cylinder going up
 .venv/bin/python -m embr_local_sim launch --scene autonomy-course --histogram --morphology urdf
 ```
 
-The **Arm** panel has the three sliders and shows `ArmStatus` (IDLE 0, MOVING 1, REACHED 2, FAULT 3) plus the four arm angles. From Python: `sim.set_arm(height, pitch, roll)` and `sim.arm_status()`.
+While driving with W A S D, hold **I** / **K** for pitch (nose down / up), **J** / **L** for roll (left / right side down) and **P** / **;** for height (up / down). The keys move the sliders at 0.6 per second, and pressing one turns auto posture off. The **Arm** panel has the three sliders and shows `ArmStatus` (IDLE 0, MOVING 1, REACHED 2, FAULT 3) plus the four arm angles. From Python: `sim.set_arm(height, pitch, roll)` and `sim.arm_status()`.
 
 **Auto posture.** While a mission drives, `auto_posture.py` owns the arms (toggle: **Auto posture in missions**). It reads only deployable signals: IMU roll and pitch, wheel encoder speed, and the mission's own jam reaction.
 

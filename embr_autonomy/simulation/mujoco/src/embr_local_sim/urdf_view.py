@@ -42,10 +42,10 @@ class ArmPanel:
         self._get_sim = get_sim
         with server.gui.add_folder("Arm", expand_by_default=True):
             self.height = server.gui.add_slider(
-                "Height", min=-1.0, max=1.0, step=0.05, initial_value=0.0, hint="+1 all arms down, -1 all arms up"
+                "Height", min=-1.0, max=1.0, step=0.01, initial_value=0.0, hint="+1 all arms down, -1 all arms up"
             )
-            self.pitch = server.gui.add_slider("Pitch", min=-1.0, max=1.0, step=0.05, initial_value=0.0, hint="+ nose down")
-            self.roll = server.gui.add_slider("Roll", min=-1.0, max=1.0, step=0.05, initial_value=0.0, hint="+ left side up")
+            self.pitch = server.gui.add_slider("Pitch", min=-1.0, max=1.0, step=0.01, initial_value=0.0, hint="+ nose down")
+            self.roll = server.gui.add_slider("Roll", min=-1.0, max=1.0, step=0.01, initial_value=0.0, hint="+ left side up")
             self.auto = server.gui.add_checkbox(
                 "Auto posture in missions",
                 initial_value=True,
@@ -55,6 +55,14 @@ class ArmPanel:
         for slider in (self.height, self.pitch, self.roll):
             slider.on_update(lambda _event: self._send())
         self.auto.on_update(lambda _event: self._get_sim().set_auto_posture(bool(self.auto.value)))
+
+    def nudge(self, height: float, pitch: float, roll: float) -> None:
+        """Keyboard arm control. Manual input takes the arms back from auto posture."""
+        if self.auto.value:
+            self.auto.value = False
+        for slider, delta in ((self.height, height), (self.pitch, pitch), (self.roll, roll)):
+            if delta:
+                slider.value = round(max(-1.0, min(1.0, float(slider.value) + delta)), 3)
 
     def _send(self) -> None:
         self._get_sim().set_arm(float(self.height.value), float(self.pitch.value), float(self.roll.value))

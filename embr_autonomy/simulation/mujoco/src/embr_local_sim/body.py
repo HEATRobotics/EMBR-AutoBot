@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-KNOWN_BODIES = ("wheels", "tracks", "articulated", "cad")
+KNOWN_BODIES = ("wheels", "tracks", "articulated", "cad", "urdf")
 
 _PROXY_CAMERA = (0.42, -0.48, 0.28)
 _PROXY_LOOK = (0.08, 0.0, 0.03)
@@ -49,6 +49,10 @@ def resolve_body(morphology: str) -> BodySpec:
         from embr_local_sim.cad_model import cad_body_spec
 
         return cad_body_spec()
+    if name == "urdf":
+        from embr_local_sim.urdf_model import urdf_body_spec
+
+        return urdf_body_spec()
     if name == "tracks":
         from embr_local_sim.track_approx import FIDELITY
 
@@ -68,6 +72,10 @@ def apply_body(params):
         from embr_local_sim.cad_model import apply_cad_params
 
         return apply_cad_params(params)
+    if getattr(params, "morphology", "") == "urdf":
+        from embr_local_sim.urdf_model import apply_urdf_params
+
+        return apply_urdf_params(params)
     return params
 
 

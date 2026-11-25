@@ -1,0 +1,148 @@
+<?xml version="1.0"?>
+<!--
+  EMBR mock bot, primitive shapes only.
+
+  Chassis: a box with the footprint of the mock bot plate in PR 88
+  (0.706 m x 0.508 m). Four arms: boxes hinged at the chassis corners, each
+  carrying its drive cylinder at the far end. At 0 rad an arm is level and
+  the cylinders sit at the PR 88 wheelbase (1.192 m). Each arm swings 90
+  degrees up or down. Height, pitch, and roll come from the four arm angles.
+
+  Frame: +X forward, +Y left, +Z up. `root` is the chassis centre, on the
+  arm hinge line. Arm joints: positive is the cylinder going up.
+  Masses, limits, and efforts are ASSUMED. The sim adds the free joint,
+  sensor sites, and actuators (urdf_model.py).
+-->
+<robot name="embr_mock">
+  <mujoco>
+    <compiler discardvisual="false" angle="radian"/>
+  </mujoco>
+
+  <material name="chassis"><color rgba="0.62 0.66 0.70 1"/></material>
+  <material name="arm"><color rgba="0.30 0.45 0.62 1"/></material>
+  <material name="wheel"><color rgba="0.12 0.12 0.12 1"/></material>
+  <material name="sensor"><color rgba="0.10 0.10 0.12 1"/></material>
+  <material name="probe"><color rgba="0.15 0.85 0.35 1"/></material>
+
+  <!-- MARK: Chassis -->
+  <link name="root">
+    <inertial>
+      <mass value="4.0"/>
+      <inertia ixx="0.0881" iyy="0.1683" izz="0.2522" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+    <collision name="chassis">
+      <geometry><box size="0.706 0.508 0.08"/></geometry>
+    </collision>
+    <visual name="chassis_vis">
+      <geometry><box size="0.706 0.508 0.08"/></geometry>
+      <material name="chassis"/>
+    </visual>
+    <!-- Lidar mast at the front-centre. The scan origin (sim site) is just above the puck. -->
+    <visual name="lidar_mast">
+      <origin xyz="0.30 0 0.07"/>
+      <geometry><cylinder radius="0.015" length="0.06"/></geometry>
+      <material name="sensor"/>
+    </visual>
+    <visual name="lidar_puck">
+      <origin xyz="0.30 0 0.09"/>
+      <geometry><cylinder radius="0.05" length="0.02"/></geometry>
+      <material name="sensor"/>
+    </visual>
+  </link>
+
+  <!-- MARK: Arms. Hinge at the chassis corner, box out to the cylinder. -->
+  <link name="arm_front_left">
+    <inertial><origin xyz="0.1215 0 0"/><mass value="0.10"/><inertia ixx="3e-5" iyy="5e-4" izz="5e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    <visual name="arm_front_left"><origin xyz="0.1215 0 0"/><geometry><box size="0.243 0.04 0.04"/></geometry><material name="arm"/></visual>
+  </link>
+  <link name="arm_front_right">
+    <inertial><origin xyz="0.1215 0 0"/><mass value="0.10"/><inertia ixx="3e-5" iyy="5e-4" izz="5e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    <visual name="arm_front_right"><origin xyz="0.1215 0 0"/><geometry><box size="0.243 0.04 0.04"/></geometry><material name="arm"/></visual>
+  </link>
+  <link name="arm_rear_left">
+    <inertial><origin xyz="-0.1215 0 0"/><mass value="0.10"/><inertia ixx="3e-5" iyy="5e-4" izz="5e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    <visual name="arm_rear_left"><origin xyz="-0.1215 0 0"/><geometry><box size="0.243 0.04 0.04"/></geometry><material name="arm"/></visual>
+  </link>
+  <link name="arm_rear_right">
+    <inertial><origin xyz="-0.1215 0 0"/><mass value="0.10"/><inertia ixx="3e-5" iyy="5e-4" izz="5e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    <visual name="arm_rear_right"><origin xyz="-0.1215 0 0"/><geometry><box size="0.243 0.04 0.04"/></geometry><material name="arm"/></visual>
+  </link>
+
+  <!-- Front arms point +X, so axis -Y lifts the cylinder for a positive angle. Rear arms use +Y. -->
+  <joint name="arm_front_left" type="revolute">
+    <parent link="root"/><child link="arm_front_left"/>
+    <origin xyz="0.353 0.279 0"/><axis xyz="0 -1 0"/>
+    <limit lower="-1.5708" upper="1.5708" effort="30" velocity="1.5"/>
+    <dynamics damping="0.5"/>
+  </joint>
+  <joint name="arm_front_right" type="revolute">
+    <parent link="root"/><child link="arm_front_right"/>
+    <origin xyz="0.353 -0.279 0"/><axis xyz="0 -1 0"/>
+    <limit lower="-1.5708" upper="1.5708" effort="30" velocity="1.5"/>
+    <dynamics damping="0.5"/>
+  </joint>
+  <joint name="arm_rear_left" type="revolute">
+    <parent link="root"/><child link="arm_rear_left"/>
+    <origin xyz="-0.353 0.279 0"/><axis xyz="0 1 0"/>
+    <limit lower="-1.5708" upper="1.5708" effort="30" velocity="1.5"/>
+    <dynamics damping="0.5"/>
+  </joint>
+  <joint name="arm_rear_right" type="revolute">
+    <parent link="root"/><child link="arm_rear_right"/>
+    <origin xyz="-0.353 -0.279 0"/><axis xyz="0 1 0"/>
+    <limit lower="-1.5708" upper="1.5708" effort="30" velocity="1.5"/>
+    <dynamics damping="0.5"/>
+  </joint>
+
+  <!-- MARK: Drive cylinders at the arm tips. Joint names match the drivetrain. -->
+  <link name="front_left">
+    <inertial><mass value="0.05"/><inertia ixx="1.14e-4" iyy="1.98e-4" izz="1.14e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    <collision name="front_left"><origin rpy="1.5708 0 0"/><geometry><cylinder radius="0.089" length="0.06"/></geometry></collision>
+    <visual name="front_left_vis"><origin rpy="1.5708 0 0"/><geometry><cylinder radius="0.089" length="0.06"/></geometry><material name="wheel"/></visual>
+  </link>
+  <link name="front_right">
+    <inertial><mass value="0.05"/><inertia ixx="1.14e-4" iyy="1.98e-4" izz="1.14e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    <collision name="front_right"><origin rpy="1.5708 0 0"/><geometry><cylinder radius="0.089" length="0.06"/></geometry></collision>
+    <visual name="front_right_vis"><origin rpy="1.5708 0 0"/><geometry><cylinder radius="0.089" length="0.06"/></geometry><material name="wheel"/></visual>
+  </link>
+  <link name="rear_left">
+    <inertial><mass value="0.05"/><inertia ixx="1.14e-4" iyy="1.98e-4" izz="1.14e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    <collision name="rear_left"><origin rpy="1.5708 0 0"/><geometry><cylinder radius="0.089" length="0.06"/></geometry></collision>
+    <visual name="rear_left_vis"><origin rpy="1.5708 0 0"/><geometry><cylinder radius="0.089" length="0.06"/></geometry><material name="wheel"/></visual>
+  </link>
+  <link name="rear_right">
+    <inertial><mass value="0.05"/><inertia ixx="1.14e-4" iyy="1.98e-4" izz="1.14e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    <collision name="rear_right"><origin rpy="1.5708 0 0"/><geometry><cylinder radius="0.089" length="0.06"/></geometry></collision>
+    <visual name="rear_right_vis"><origin rpy="1.5708 0 0"/><geometry><cylinder radius="0.089" length="0.06"/></geometry><material name="wheel"/></visual>
+  </link>
+
+  <!-- The cylinder sits just outboard of its arm. -->
+  <joint name="front_left_maxon" type="continuous">
+    <parent link="arm_front_left"/><child link="front_left"/>
+    <origin xyz="0.243 0.055 0"/><axis xyz="0 1 0"/>
+  </joint>
+  <joint name="front_right_maxon" type="continuous">
+    <parent link="arm_front_right"/><child link="front_right"/>
+    <origin xyz="0.243 -0.055 0"/><axis xyz="0 1 0"/>
+  </joint>
+  <joint name="rear_left_maxon" type="continuous">
+    <parent link="arm_rear_left"/><child link="rear_left"/>
+    <origin xyz="-0.243 0.055 0"/><axis xyz="0 1 0"/>
+  </joint>
+  <joint name="rear_right_maxon" type="continuous">
+    <parent link="arm_rear_right"/><child link="rear_right"/>
+    <origin xyz="-0.243 -0.055 0"/><axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- MARK: Thermal probe. The mission's probe machine drives this hinge. -->
+  <link name="probe">
+    <inertial><origin xyz="0.02 0 0"/><mass value="0.02"/><inertia ixx="1e-6" iyy="1e-6" izz="1e-6" ixy="0" ixz="0" iyz="0"/></inertial>
+    <visual name="probe_boom"><origin xyz="0.02 0 0" rpy="0 1.5708 0"/><geometry><cylinder radius="0.004" length="0.04"/></geometry><material name="probe"/></visual>
+  </link>
+  <joint name="probe_hinge" type="revolute">
+    <parent link="root"/><child link="probe"/>
+    <origin xyz="-0.112 0 -0.04"/><axis xyz="0 1 0"/>
+    <limit lower="0" upper="1.2" effort="2" velocity="2.0"/>
+    <dynamics damping="0.02"/>
+  </joint>
+</robot>

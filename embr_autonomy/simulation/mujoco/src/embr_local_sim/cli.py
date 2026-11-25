@@ -113,8 +113,8 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--morphology",
         default=None,
-        choices=("wheels", "articulated", "tracks", "cad"),
-        help="launch opens tracks (5 rollers per module, not a belt). headless defaults to wheels. articulated = 3-roller pods. cad = STEP visual plus four idler cylinders.",
+        choices=("wheels", "articulated", "tracks", "cad", "urdf"),
+        help="launch opens tracks (5 rollers per module, not a belt). headless defaults to wheels. articulated = 3-roller pods. cad = STEP visual plus four idler cylinders. urdf = primitive-shape body with the 3-DOF arm.",
     )
 
 

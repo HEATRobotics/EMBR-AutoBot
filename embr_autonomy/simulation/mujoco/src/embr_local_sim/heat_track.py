@@ -32,7 +32,7 @@ def _hedge(x0: float, x1: float, y: float, radius: float = 0.18, step: float = 0
 def _wheel_half(morphology: str) -> float:
     _axle_x, wheel_y, _radius, _body = _roller_pose(morphology)
     half = abs(wheel_y)
-    if morphology == "cad":
+    if morphology in ("cad", "urdf"):
         from embr_local_sim.cad_model import load_cad_geometry
 
         roller = next(item for item in load_cad_geometry()["rollers"] if item["joint"] == "front_right_maxon")

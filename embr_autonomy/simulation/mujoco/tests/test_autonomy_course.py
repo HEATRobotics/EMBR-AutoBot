@@ -95,7 +95,7 @@ def test_the_lidar_sits_on_top_and_sees_around_the_body() -> None:
     assert len(ranges) == 21 and max(abs(a) for a in angles) <= math.radians(60) + 1e-9
 
 
-@pytest.mark.parametrize("morphology", ["cad"])
+@pytest.mark.parametrize("morphology", ["cad", "urdf"])
 def test_the_histogram_takes_the_climbable_route_to_the_hotspot(morphology: str) -> None:
     params = apply_body(RobotParams(morphology=morphology))
     sim = Simulator(params=params, world=prepare_world("autonomy-course", 1, morphology), seed=1)

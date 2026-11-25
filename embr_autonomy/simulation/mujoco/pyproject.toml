@@ -30,6 +30,7 @@ embr_local_sim = [
     "bundled/**/*.md",
     "bundled/**/*.json",
     "bundled/**/*.obj",
+    "bundled/**/*.urdf",
 ]
 
 [tool.pytest.ini_options]

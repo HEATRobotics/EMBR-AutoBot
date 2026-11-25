@@ -302,10 +302,10 @@ def run_viewer(
     server.scene.set_up_direction("+z")
     server.initial_camera.position = body.camera_position
     server.initial_camera.look_at = body.camera_look_at
-    if world.kind == "rough" and params.morphology == "cad":
+    if world.kind == "rough" and params.morphology in ("cad", "urdf"):
         server.initial_camera.position = (0.4, -5.5, 2.6)
         server.initial_camera.look_at = (2.4, 0.0, 0.12)
-    if world.kind == "yard" and params.morphology == "cad":
+    if world.kind == "yard" and params.morphology in ("cad", "urdf"):
         server.initial_camera.position = (0.4, -5.4, 2.6)
         server.initial_camera.look_at = (2.8, 0.0, 0.35)
     if world.kind in ("hot-room", "heat-track"):
@@ -447,6 +447,11 @@ def run_viewer(
     from embr_local_sim.sensor_overlay import SensorOverlay
 
     ctx["overlay"] = SensorOverlay(server)
+    ctx["arm_panel"] = None
+    if getattr(sim, "arm", None) is not None:
+        from embr_local_sim.urdf_view import ArmPanel
+
+        ctx["arm_panel"] = ArmPanel(server, lambda: ctx["sim"])
     from embr_local_sim.mission import instruction_markdown
 
     with server.gui.add_folder("Mission / autonomy", expand_by_default=True):
@@ -854,6 +859,7 @@ def run_viewer(
         "tracks": "distributed-contact track approximation (not a belt, not CAD)",
         "articulated": "articulated roller-pod approximation (not tracks, not CAD)",
         "cad": "CAD visual from the Onshape STEP; contact is four idler cylinders, mass and torque assumed",
+        "urdf": "primitive-shape URDF mock bot with four corner arms (height, pitch, roll); mass, torque, and limits assumed",
     }.get(params.morphology, "four-wheel skid-steer proxy (not the full EMBR)")
     print(f"EMBR MuJoCo viewer")
     print(f"  scene: {world.kind}   seed: {seed}   morphology: {morph}")
@@ -885,6 +891,8 @@ def run_viewer(
                 if show_lidar.value:
                     _sync_lidar(server, obs)
                 ctx["overlay"].sync(sim_now, obs)
+                if ctx["arm_panel"] is not None:
+                    ctx["arm_panel"].sync()
                 _sync_probe(server, sim_now)
                 _sync_flame_pulse(ctx["world_nodes"], gt.sim_time)
                 if show_contacts.value:
@@ -1212,6 +1220,13 @@ def _fidelity_line(params: RobotParams) -> str:
 
 
 def _add_robot_geometry(server: Any, params: RobotParams, sim: Simulator):
+    if params.morphology == "urdf":
+        from embr_local_sim.urdf_view import add_urdf_geometry
+
+        _visual_lift_m["m"] = 0.0
+        _clear_spin_handles()
+        root, frames = add_urdf_geometry(server, sim.model)
+        return root, {}, frames
     if params.morphology == "cad":
         import trimesh
 

@@ -180,6 +180,10 @@ def build_mjcf(robot: RobotParams, world: WorldSpec | None = None) -> str:
         from embr_local_sim.cad_model import build_cad_mjcf
 
         return build_cad_mjcf(robot, world)
+    if robot.morphology == "urdf":
+        from embr_local_sim.urdf_model import build_urdf_mjcf
+
+        return build_urdf_mjcf(robot, world)
     hx, hy, hz = (0.5 * s for s in robot.chassis_size)
     chassis_z = 0.002
     ixx, iyy, izz = _box_diag_inertia(robot.chassis_mass, *robot.chassis_size)

@@ -185,6 +185,10 @@ class Simulator:
         self.supervisor = CommandSupervisor()
         if not self._podded:
             self.supervisor.mode = "n/a"
+        from embr_local_sim.arm import ArmController
+
+        # None on bodies without an arm. The URDF body has one.
+        self.arm = ArmController.from_model(self.model)
         self._probe_act = int(self.model.actuator(PROBE_ACTUATOR).id)
         self._probe_qpos = int(self.model.joint(PROBE_JOINT).qposadr[0])
         self._root_id = int(self.model.body(ROOT_BODY).id)
@@ -209,6 +213,14 @@ class Simulator:
 
     def set_posture_preset(self, name: str) -> None:
         self.enqueue(UiRequest(kind="preset", preset=name))
+
+    def set_arm(self, height: float, pitch: float, roll: float) -> None:
+        """Arm command, each axis normalised to [-1, 1]. Ignored on bodies without an arm."""
+        self.enqueue(UiRequest(kind="arm", art_targets={"height": height, "pitch": pitch, "roll": roll}))
+
+    def arm_status(self):
+        """ArmStatus (IDLE, MOVING, REACHED, FAULT) and a message, or None without an arm."""
+        return None if self.arm is None else self.arm.status(self.data)
 
     def set_art_targets(self, targets: dict[str, float]) -> None:
         self.enqueue(UiRequest(kind="art_targets", art_targets=targets))
@@ -281,6 +293,10 @@ class Simulator:
             self.data.qpos[self._joint_adr[name]] = 0.0
         for name, adr in self._art_qpos.items():
             self.data.qpos[adr] = 0.0
+        if self.arm is not None:
+            self.arm.reset()
+            for adr in self.arm.joint_positions(self.data):
+                self.data.qpos[self.model.joint(adr).qposadr[0]] = 0.0
         self.data.qvel[:] = 0.0
         self.data.ctrl[:] = 0.0
         mujoco.mj_forward(self.model, self.data)
@@ -357,6 +373,9 @@ class Simulator:
             elif req.kind == "preset" and req.preset:
                 self.posture.set_preset(req.preset)
                 self.supervisor.set_mode("assisted", "preset")
+            elif req.kind == "arm" and req.art_targets and self.arm is not None:
+                t = req.art_targets
+                self.arm.command(t["height"], t["pitch"], t["roll"], float(self.data.time))
             elif req.kind == "art_targets" and req.art_targets:
                 self.posture.set_manual(req.art_targets)
                 self.supervisor.set_mode("assisted", "manual_legs")
@@ -488,6 +507,8 @@ class Simulator:
         else:
             for name, value in tau.items():
                 self.data.ctrl[self._act_id[name]] = value
+        if self.arm is not None:
+            self.arm.apply(self.data, dt)
         angle = float(self.data.qpos[self._probe_qpos])
         target = self.probe.tick(sim_time=float(self.data.time), angle=angle)
         if self.probe.config.stuck:

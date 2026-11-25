@@ -11,7 +11,7 @@ from embr_local_sim.model import RobotParams, WorldSpec
 
 def _roller_pose(morphology: str) -> tuple[float, float, float, str]:
     """World-plan x, y, radius, and the body name of the wheel that should rise."""
-    if morphology == "cad":
+    if morphology in ("cad", "urdf"):
         from embr_local_sim.cad_model import load_cad_geometry
 
         geo = load_cad_geometry()

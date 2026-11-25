@@ -92,6 +92,32 @@ Click **Go to the heat source**. The **Sensor views** panel shows:
 
 **Ramps.** The CAD body's climb limit with its assumed 0.5 N·m rollers was measured at 7.5° (7° crosses, 8° stalls). Humps under that limit sit in a geom group the flat fan does not see, so they read as floor. Steeper humps are visible and read as walls. This is a stand-in for slope-based traversability from a 3D lidar. Geometry, torque and temperatures are assumed.
 
+## URDF mock bot with arm actuation
+
+`--morphology urdf` loads `src/embr_local_sim/bundled/urdf/embr_primitive.urdf`, a standard URDF built only from boxes and cylinders:
+
+- **Chassis:** a box with the footprint of the PR 88 mock bot plate (0.706 m × 0.508 m × 0.08 m).
+- **Four arms:** 0.243 m boxes hinged at the chassis corners, each with its drive cylinder (r 0.089 m) on the far end. Level arms put the cylinders at the PR 88 wheelbase (1.192 m). Each arm swings 90° up or down.
+- Drive joints keep the usual names (`front_left_maxon`, …), so the planner, odometry and courses work unchanged.
+
+Arm actuation follows the Autonomy Test Deliverable: `height`, `pitch`, `roll`, each normalised to [-1, 1]. Lowering one cylinder by *d* lifts that corner by *d*, so each corner's lift becomes one arm angle:
+
+```
+lift_i  = L * clip(height - front_i * pitch + left_i * roll, -1, 1)
+angle_i = -asin(lift_i / L)          # + is the cylinder going up
+```
+
+`height` +1 is all arms 90° down (chassis about 0.33 m up), −1 is all arms up (chassis on its belly). Pitch and roll follow ROS REP 103: + pitch is nose down, + roll is left side up. Setpoints ramp at 1 rad/s, because a servo jumping straight to a far angle tips the chassis.
+
+```bash
+.venv/bin/python -m embr_local_sim launch --scene basic --morphology urdf
+.venv/bin/python -m embr_local_sim launch --scene autonomy-course --histogram --morphology urdf
+```
+
+The **Arm** panel has the three sliders and shows `ArmStatus` (IDLE 0, MOVING 1, REACHED 2, FAULT 3) plus the four arm angles. From Python: `sim.set_arm(height, pitch, roll)` and `sim.arm_status()`.
+
+MuJoCo reads the URDF with its own importer. `urdf_model.py` adds what URDF cannot express: the free joint, sensor sites, actuators and contact groups. Mass, gains and limits are assumed.
+
 ## Standalone Maxon motor twin
 
 `embr-local-sim motor` opens a single EC-i52 motor with an orange shaft

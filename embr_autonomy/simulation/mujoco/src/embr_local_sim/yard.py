@@ -127,7 +127,7 @@ def _metres(seed: int) -> WorldSpec:
 
 def yard_world(morphology: str, seed: int = 1) -> WorldSpec:
     world = _metres(seed)
-    if morphology == "cad":
+    if morphology in ("cad", "urdf"):
         return world
     from embr_local_sim.model import RobotParams
     from embr_local_sim.worlds import scale_world
